@@ -24,9 +24,8 @@ repos:
     rev: '25.1.0' # Version from requirements-dev.txt
     hooks:
     -   id: black
-        # It's good practice to specify the language version if your project targets specific Python versions
-        # language_version: python3 # This is often default, but can be specified
-        # args: ["--config=pyproject.toml"] # If black needs to read pyproject.toml
+        language_version: python3.12
+        args: ["--config=pyproject.toml"]
 
 # Mypy hook (optional, can be slow, already in CI)
 # -   repo: https://github.com/pre-commit/mirrors-mypy
