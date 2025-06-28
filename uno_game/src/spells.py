@@ -1,7 +1,7 @@
 # Placeholder for Lunar and Solar Spells
 
-from typing import TYPE_CHECKING, Tuple, Dict, Optional # Added Optional
-from enum import Enum # Added Enum
+from typing import TYPE_CHECKING, Tuple, Dict, Optional  # Added Optional
+from enum import Enum  # Added Enum
 
 if TYPE_CHECKING:
     from .player import Player
@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 class LunarSpellId(Enum):
     """Unique identifiers for Lunar spells."""
+
     MOONBEAM_DRAW = "moonbeam_draw"
     LUNAR_SHIELD = "lunar_shield"
     SHADOW_SWAP_PEEK = "shadow_swap_peek"
@@ -19,6 +20,7 @@ class LunarSpellId(Enum):
 
 class SolarSpellId(Enum):
     """Unique identifiers for Solar spells."""
+
     SUN_FLARE_DISCARD = "sun_flare_discard"
     SOLAR_BOOST = "solar_boost"
 
@@ -44,7 +46,7 @@ class Spell:
 
 class LunarSpells:
     def __init__(self):
-        self.spells: Dict[LunarSpellId, Spell] = {} # Use Enum as key
+        self.spells: Dict[LunarSpellId, Spell] = {}  # Use Enum as key
         self._initialize_spells()
 
     def _initialize_spells(self):
@@ -53,7 +55,7 @@ class LunarSpells:
             name="Moonbeam Draw",
             mana_cost=3,
             description="Force a target player to draw 1 card.",
-            spell_id=LunarSpellId.MOONBEAM_DRAW.value, # Store string value in Spell obj
+            spell_id=LunarSpellId.MOONBEAM_DRAW.value,  # Store string value in Spell obj
             targetable=True,
         )
         self.spells[LunarSpellId.LUNAR_SHIELD] = Spell(
@@ -75,14 +77,14 @@ class LunarSpells:
         if not self.spells:
             return "No Lunar spells known."
         display = ["Available Lunar Spells:"]
-        for spell_id_enum, spell in self.spells.items(): # Iterate with Enum
-            display.append(f"  [{spell_id_enum.name}] {spell}") # Display Enum name
+        for spell_id_enum, spell in self.spells.items():  # Iterate with Enum
+            display.append(f"  [{spell_id_enum.name}] {spell}")  # Display Enum name
         return "\n".join(display)
 
     def cast_spell(
         self,
         caster: "Player",
-        spell_id_enum: LunarSpellId, # Expect Enum member
+        spell_id_enum: LunarSpellId,  # Expect Enum member
         game_context: "UnoGame",
         target_player: Optional["Player"] = None,
     ) -> Tuple[bool, str]:
@@ -93,7 +95,10 @@ class LunarSpells:
         """
         spell_to_cast = self.spells.get(spell_id_enum)
         if not spell_to_cast:
-            return False, f"Unknown Lunar spell: {spell_id_enum}." # Should not happen if called with Enum
+            return (
+                False,
+                f"Unknown Lunar spell: {spell_id_enum}.",
+            )  # Should not happen if called with Enum
 
         if caster.lunar_mana < spell_to_cast.mana_cost:
             return (
@@ -125,7 +130,7 @@ class LunarSpells:
             message += f" {caster.name} is now shielded from the next draw effect (effect needs game logic)."
             print(f"Debug: {caster.name} gained Lunar Shield.")
 
-        else: # Covers SHADOW_SWAP_PEEK and any others
+        else:  # Covers SHADOW_SWAP_PEEK and any others
             message += f" (Effect '{spell_to_cast.spell_id}' needs to be applied by game logic)."
             print(f"Debug: Spell '{spell_to_cast.spell_id}' cast by {caster.name}.")
 
@@ -134,7 +139,7 @@ class LunarSpells:
 
 class SolarSpells:
     def __init__(self):
-        self.spells: Dict[SolarSpellId, Spell] = {} # Use Enum as key
+        self.spells: Dict[SolarSpellId, Spell] = {}  # Use Enum as key
         self._initialize_spells()
 
     def _initialize_spells(self):
@@ -143,7 +148,7 @@ class SolarSpells:
             name="Sun Flare Discard",
             mana_cost=3,
             description="Force a target player to discard a random card.",
-            spell_id=SolarSpellId.SUN_FLARE_DISCARD.value, # Store string value
+            spell_id=SolarSpellId.SUN_FLARE_DISCARD.value,  # Store string value
             targetable=True,
         )
         self.spells[SolarSpellId.SOLAR_BOOST] = Spell(
@@ -158,14 +163,14 @@ class SolarSpells:
         if not self.spells:
             return "No Solar spells known."
         display = ["Available Solar Spells:"]
-        for spell_id_enum, spell in self.spells.items(): # Iterate with Enum
-            display.append(f"  [{spell_id_enum.name}] {spell}") # Display Enum name
+        for spell_id_enum, spell in self.spells.items():  # Iterate with Enum
+            display.append(f"  [{spell_id_enum.name}] {spell}")  # Display Enum name
         return "\n".join(display)
 
     def cast_spell(
         self,
         caster: "Player",
-        spell_id_enum: SolarSpellId, # Expect Enum member
+        spell_id_enum: SolarSpellId,  # Expect Enum member
         game_context: "UnoGame",
         target_player: Optional["Player"] = None,
     ) -> Tuple[bool, str]:
@@ -199,7 +204,7 @@ class SolarSpells:
             # else: message += f" {target_player.name} has no cards to discard."
             message += f" ({target_player.name} should discard a random card - effect needs full game logic integration)."
             print(f"Debug: {target_player.name} targeted by Sun Flare Discard.")
-        else: # Covers SOLAR_BOOST and any others
+        else:  # Covers SOLAR_BOOST and any others
             message += f" (Effect '{spell_to_cast.spell_id}' needs to be applied by game logic)."
             print(f"Debug: Spell '{spell_to_cast.spell_id}' cast by {caster.name}.")
 
@@ -229,13 +234,19 @@ if __name__ == "__main__":
 
     print("\n--- Merlin's Casts ---")
     success, msg = lunar_magic.cast_spell(
-        player_merlin, LunarSpellId.MOONBEAM_DRAW, dummy_game, target_player=player_morgana
+        player_merlin,
+        LunarSpellId.MOONBEAM_DRAW,
+        dummy_game,
+        target_player=player_morgana,
     )
     print(msg)
     print(f"Merlin's Lunar Mana: {player_merlin.lunar_mana}")
 
     success, msg = solar_magic.cast_spell(
-        player_merlin, SolarSpellId.SUN_FLARE_DISCARD, dummy_game, target_player=player_morgana
+        player_merlin,
+        SolarSpellId.SUN_FLARE_DISCARD,
+        dummy_game,
+        target_player=player_morgana,
     )
     print(msg)
     print(f"Merlin's Solar Mana: {player_merlin.solar_mana}")
@@ -248,5 +259,7 @@ if __name__ == "__main__":
     # print(msg)
 
     player_arthur = DummyPlayer("Arthur", lunar=1, solar=1)
-    success, msg = lunar_magic.cast_spell(player_arthur, LunarSpellId.LUNAR_SHIELD, dummy_game)
+    success, msg = lunar_magic.cast_spell(
+        player_arthur, LunarSpellId.LUNAR_SHIELD, dummy_game
+    )
     print(msg)  # Not enough mana
