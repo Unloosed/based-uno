@@ -1376,19 +1376,37 @@ if __name__ == "__main__":
             break
 
         # Determine who is providing input for this step of the turn
-        actor_player = game.get_current_player()  # Default actor is whose turn it is
-        # The following complex actor determination logic was part of the __main__ simulation
-        # and might not be perfectly robust or necessary for the library's core logic.
-        # It's simplified here for the purpose of the error message.
-        # The actual actor for pending actions is determined within play_turn.
+        current_main_turn_player = game.get_current_player() # Player whose turn it officially is
+        actor_player = current_main_turn_player # Default actor
+
         if game.pending_action:
-            # This is a simplified determination for the print message below.
-            # The true actor is resolved inside play_turn.
-            pass  # actor_player is already set to current_player, play_turn will handle specifics.
+            # Determine the actual player who needs to provide input for the pending action
+            if game.pending_action.type == ActionType.DISCARD_FROM_PLAYER_HAND:
+                chooser_idx = game.action_data.get("chooser_idx")
+                if chooser_idx is not None:
+                    actor_player = game.players[chooser_idx]
+            elif game.pending_action.type in [ActionType.SWAP_CARD_RIGHT, ActionType.SWAP_CARD_ANY, ActionType.PLAY_ANY_AND_DRAW_ONE]:
+                # These actions are performed by the original player who played the card
+                original_player_idx = game.action_data.get("original_player_idx")
+                if original_player_idx is not None:
+                    actor_player = game.players[original_player_idx]
+            elif game.pending_action.type == ActionType.CHOOSE_COLOR:
+                # If CHOOSE_COLOR is for a Rank 6 wild, the original_player_idx of Rank 6 acts.
+                # Otherwise, it's the player_idx stored (who played the normal wild).
+                if game.action_data.get("is_for_rank_6_wild"):
+                    original_player_idx = game.action_data.get("original_player_idx")
+                    if original_player_idx is not None:
+                         actor_player = game.players[original_player_idx]
+                else:
+                    player_idx_for_color_choice = game.action_data.get("player_idx")
+                    if player_idx_for_color_choice is not None:
+                        actor_player = game.players[player_idx_for_color_choice]
+            # If actor_player couldn't be determined specifically, it defaults to current_main_turn_player,
+            # which might be correct for some pending actions or might lead to an error if not handled inside play_turn.
 
         print(
-            f"\n--- Turn {turn_num + 1}: Main turn for {game.get_current_player().name}, Input from {actor_player.name} ---"
-        )  # Note: actor_player here might just be the current player if pending action actor is different
+            f"\n--- Turn {turn_num + 1}: Main turn for {current_main_turn_player.name}, Input from {actor_player.name} ---"
+        )
         print(f"{actor_player.name}'s Hand: {actor_player.get_hand_display()}")
 
         turn_message = ""
@@ -1396,9 +1414,15 @@ if __name__ == "__main__":
         card_idx_sim = None
 
         if game.pending_action:
+            # Ensure the actor_player determined above is used for messages and logic
             print(
                 f"Sim: Handling pending action {game.pending_action.type.name} for {actor_player.name}."
             )
+
+            # The actor_player (who is providing input) is now correctly set for the simulation logic below.
+            # For SWAP_CARD_RIGHT, SWAP_CARD_ANY, PLAY_ANY_AND_DRAW_ONE, CHOOSE_COLOR,
+            # actor_player should be the one who initiated the action or needs to make the choice.
+            # For DISCARD_FROM_PLAYER_HAND, actor_player is the 'chooser'.
 
             if game.pending_action.type == ActionType.SWAP_CARD_RIGHT:
                 if not actor_player.is_hand_empty():
