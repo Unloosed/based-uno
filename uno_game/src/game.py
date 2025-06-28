@@ -1205,12 +1205,11 @@ if __name__ == "__main__":
         if game.pending_action:
             # This is a simplified determination for the print message below.
             # The true actor is resolved inside play_turn.
-            pass # actor_player is already set to current_player, play_turn will handle specifics.
-
+            pass  # actor_player is already set to current_player, play_turn will handle specifics.
 
         print(
             f"\n--- Turn {turn_num + 1}: Main turn for {game.get_current_player().name}, Input from {actor_player.name} ---"
-        ) # Note: actor_player here might just be the current player if pending action actor is different
+        )  # Note: actor_player here might just be the current player if pending action actor is different
         print(f"{actor_player.name}'s Hand: {actor_player.get_hand_display()}")
 
         turn_message = ""

@@ -1,6 +1,6 @@
 # Placeholder for the Shop system
 
-from typing import TYPE_CHECKING, Dict, Tuple # Added Tuple
+from typing import TYPE_CHECKING, Dict, Tuple  # Added Tuple
 from enum import Enum
 
 if TYPE_CHECKING:
@@ -8,18 +8,21 @@ if TYPE_CHECKING:
         Player,
     )  # To avoid circular import if Player needs Shop or vice-versa
 
+
 class ShopEffectId(Enum):
     """Unique identifiers for shop item effects."""
+
     DRAW_ONE_LESS = "draw_one_less"
     GAIN_SHUFFLE_TOKEN = "gain_shuffle_token"
     PEEK_HAND = "peek_hand"
+
 
 class ShopItem:
     def __init__(self, name: str, cost: int, description: str, effect_id: ShopEffectId):
         self.name = name
         self.cost = cost
         self.description = description
-        self.effect_id: ShopEffectId = effect_id # An identifier to apply the effect
+        self.effect_id: ShopEffectId = effect_id  # An identifier to apply the effect
 
     def __str__(self):
         return f"{self.name} (Cost: {self.cost} coins) - {self.description}"
@@ -27,7 +30,7 @@ class ShopItem:
 
 class Shop:
     def __init__(self):
-        self.items: Dict[ShopEffectId, ShopItem] = {} # Keyed by Enum now
+        self.items: Dict[ShopEffectId, ShopItem] = {}  # Keyed by Enum now
         self._initialize_items()
 
     def _initialize_items(self):
@@ -56,11 +59,13 @@ class Shop:
         if not self.items:
             return "The shop is currently empty."
         display = ["Welcome to the Shop! Available items:"]
-        for item_effect_id, item in self.items.items(): # item_id is now an Enum member
-            display.append(f"  [{item_effect_id.name}] {item}") # Display Enum name
+        for item_effect_id, item in self.items.items():  # item_id is now an Enum member
+            display.append(f"  [{item_effect_id.name}] {item}")  # Display Enum name
         return "\n".join(display)
 
-    def purchase_item(self, player: "Player", item_id_enum: ShopEffectId) -> Tuple[bool, str]:
+    def purchase_item(
+        self, player: "Player", item_id_enum: ShopEffectId
+    ) -> Tuple[bool, str]:
         """
         Allows a player to purchase an item.
         Returns (success, message).
@@ -70,7 +75,6 @@ class Shop:
         if not item_to_buy:
             # This should ideally not happen if item_id_enum is enforced as ShopEffectId by type checker
             return False, f"Invalid item ID: {item_id_enum}."
-
 
         if player.coins < item_to_buy.cost:
             return (
