@@ -1,14 +1,9 @@
-"""Tests for the uno_game.src.card module."""
-
 import unittest
 from src.card import Card, Color, Rank  # Corrected import path relative to project root
 
 
 class TestCard(unittest.TestCase):
-    """Test suite for the Card class."""
-
     def test_card_creation(self):
-        """Test basic card creation with color, rank, and initial active_color."""
         card = Card(Color.RED, Rank.FIVE)
         self.assertEqual(card.color, Color.RED)
         self.assertEqual(card.rank, Rank.FIVE)
@@ -17,7 +12,6 @@ class TestCard(unittest.TestCase):
         )  # Should be same as color initially
 
     def test_wild_card_creation(self):
-        """Test creation of Wild and Wild Draw Four cards."""
         wild_card = Card(Color.WILD, Rank.WILD)
         self.assertEqual(wild_card.color, Color.WILD)
         self.assertEqual(wild_card.rank, Rank.WILD)
@@ -30,14 +24,12 @@ class TestCard(unittest.TestCase):
         self.assertEqual(wd4.rank, Rank.WILD_DRAW_FOUR)
 
     def test_wild_card_auto_color_correction(self):
-        """Test that Wild cards are automatically assigned Color.WILD if another color is passed."""
         # If a color like RED is passed with Rank.WILD, it should be corrected to Color.WILD
         card = Card(Color.RED, Rank.WILD)
         self.assertEqual(card.color, Color.WILD)
         self.assertEqual(card.rank, Rank.WILD)
 
     def test_invalid_card_creation(self):
-        """Test card creation with invalid type for color/rank or invalid color-rank combo."""
         with self.assertRaises(TypeError):
             Card("RED", Rank.FIVE)  # Invalid color type
         with self.assertRaises(TypeError):
@@ -47,7 +39,6 @@ class TestCard(unittest.TestCase):
             Card(Color.WILD, Rank.ONE)
 
     def test_card_string_representation(self):
-        """Test the __str__ method for various card types and states."""
         red_five = Card(Color.RED, Rank.FIVE)
         self.assertEqual(str(red_five), "RED FIVE")
 
@@ -67,7 +58,6 @@ class TestCard(unittest.TestCase):
         )  # Note: WD4 str might also show (BLUE)
 
     def test_card_equality(self):
-        """Test card equality based on color and rank, not active_color."""
         card1 = Card(Color.RED, Rank.ONE)
         card2 = Card(Color.RED, Rank.ONE)
         card3 = Card(Color.BLUE, Rank.ONE)
@@ -79,7 +69,6 @@ class TestCard(unittest.TestCase):
         self.assertNotEqual(card1, "RED ONE")  # Test against different type
 
     def test_card_hash(self):
-        """Test card hashing for use in sets and dictionary keys."""
         # Test that equal cards have the same hash (for set/dict usage)
         card1 = Card(Color.RED, Rank.ONE)
         card2 = Card(Color.RED, Rank.ONE)
@@ -93,7 +82,6 @@ class TestCard(unittest.TestCase):
         self.assertEqual(len(card_set), 2)
 
     def test_is_special_action(self):
-        """Test the is_special_action method for action cards (non-Wild)."""
         self.assertTrue(Card(Color.RED, Rank.DRAW_TWO).is_special_action())
         self.assertTrue(Card(Color.BLUE, Rank.SKIP).is_special_action())
         self.assertTrue(Card(Color.GREEN, Rank.REVERSE).is_special_action())
@@ -103,14 +91,12 @@ class TestCard(unittest.TestCase):
         )  # Wilds are not "special action" in this context
 
     def test_is_wild(self):
-        """Test the is_wild method for Wild and Wild Draw Four cards."""
         self.assertTrue(Card(Color.WILD, Rank.WILD).is_wild())
         self.assertTrue(Card(Color.WILD, Rank.WILD_DRAW_FOUR).is_wild())
         self.assertFalse(Card(Color.RED, Rank.DRAW_TWO).is_wild())
         self.assertFalse(Card(Color.BLUE, Rank.FIVE).is_wild())
 
     def test_card_matches(self):
-        """Test the card matching logic under various conditions."""
         red_five = Card(Color.RED, Rank.FIVE)
         red_seven = Card(Color.RED, Rank.SEVEN)
         blue_five = Card(Color.BLUE, Rank.FIVE)
@@ -143,16 +129,15 @@ class TestCard(unittest.TestCase):
         self.assertFalse(
             red_card.matches(wild_on_table, current_color_chosen_for_wild=Color.BLUE)
         )
-        # If no color chosen for wild on table (e.g. start of game), should raise ValueError
-        with self.assertRaises(ValueError):
+        # If no color chosen for wild on table (e.g. start of game), should not match non-wilds
+        self.assertFalse(
             blue_card.matches(wild_on_table, current_color_chosen_for_wild=None)
-
+        )
         # An unchosen wild should still match its own color (WILD), which another Wild card would do
         another_wild = Card(Color.WILD, Rank.WILD_DRAW_FOUR)
-        # Playing a wild on an unchosen wild on table (current_color_chosen_for_wild is for other_card)
         self.assertTrue(
             another_wild.matches(wild_on_table, current_color_chosen_for_wild=None)
-        )  # Wild on Wild (no color needed for 'other_card' if it's wild and this is wild)
+        )  # Wild on Wild
         self.assertTrue(
             another_wild.matches(wild_on_table, current_color_chosen_for_wild=Color.RED)
         )  # Wild on chosen Wild

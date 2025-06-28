@@ -1,11 +1,6 @@
-"""
-Uno Game Package.
+# This file makes the src directory a Python package.
 
-This package contains the core logic for the Uno game, including cards,
-deck, players, and game mechanics.
-"""
-
-# Make key classes and enums available when importing the src package directly.
+# Optionally, make key classes available when importing src
 from .card import Card, Color, Rank
 from .deck import Deck
 from .player import Player
