@@ -19,7 +19,9 @@ class ActionType(Enum):
     SWAP_CARD_ANY = (
         auto()
     )  # Player needs to choose card to give, target player, and card to receive
-    DISCARD_FROM_PLAYER_HAND = auto()  # Target player (player to left) discards 2 cards from current player's hand (chosen by target)
+    DISCARD_FROM_PLAYER_HAND = (
+        auto()
+    )  # Target player (player to left) discards 2 cards from current player's hand (chosen by target)
     PLAYER_DRAWS_FOUR_UNLESS_LAST = (
         auto()
     )  # Player who played it draws 4, unless it's their last card
