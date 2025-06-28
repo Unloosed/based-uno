@@ -33,7 +33,7 @@ class Shop:
         self.items: Dict[ShopEffectId, ShopItem] = {}  # Keyed by Enum now
         self._initialize_items()
 
-    def _initialize_items(self):
+    def _initialize_items(self) -> None:
         # Placeholder items - these would be defined with actual game effects
         self.items[ShopEffectId.DRAW_ONE_LESS] = ShopItem(
             name="Lucky Charm",

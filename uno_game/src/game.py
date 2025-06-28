@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 import random
 
 from .card import Card, Color, Rank
@@ -724,12 +724,22 @@ class UnoGame:
                     return False, "Invalid color for Wild.", ActionType.CHOOSE_COLOR
 
                 # Help MyPy understand that chosen_color_from_input is now one of the specific non-WILD colors
-                assert chosen_color_from_input in [
-                    Color.RED,
-                    Color.YELLOW,
-                    Color.GREEN,
-                    Color.BLUE,
-                ]
+                # Ensure it's a Color instance and not None or WILD before assignment
+                if (
+                    not isinstance(chosen_color_from_input, Color)
+                    or chosen_color_from_input == Color.WILD
+                ):
+                    return (
+                        False,
+                        "Invalid color chosen for Wild.",
+                        ActionType.CHOOSE_COLOR,
+                    )
+
+                # At this point, chosen_color_from_input is a valid Color enum member (RED, YELLOW, GREEN, or BLUE)
+                # The original assert was fine for runtime, but for MyPy, explicitly casting or ensuring
+                # the type aligns with `Optional[Color]` is better.
+                # `self.current_wild_color` expects `Optional[Color]`.
+                # `chosen_color_from_input` is a `Color` instance. This assignment is valid.
 
                 if self.action_data.get("is_for_rank_6_wild"):
                     rank_6_card_idx_val = self.action_data.pop(
@@ -796,10 +806,17 @@ class UnoGame:
                             None,
                         )
 
-                    self.current_wild_color = chosen_color_from_input  # type: ignore[assignment]
-                    card_that_was_wild.active_color = chosen_color_from_input
+                    # chosen_color_from_input is already validated to be a Color instance (non-WILD)
+                    # self.current_wild_color is Optional[Color]
+                    # chosen_color_from_input is confirmed to be a specific Color (not WILD).
+                    # Explicitly type hint chosen_color_from_input before assignment
+                    color_to_assign: Color = chosen_color_from_input
+                    self.current_wild_color = color_to_assign  # type: ignore # Assign the explicitly typed variable
+                    card_that_was_wild.active_color = (
+                        color_to_assign  # Also use the typed variable here
+                    )
                     message_parts.append(
-                        f"{player_who_chose.name} chose {chosen_color_from_input.name} for {card_that_was_wild}."
+                        f"{player_who_chose.name} chose {color_to_assign.name} for {card_that_was_wild}."
                     )
 
                     remaining_actions = self.action_data.pop("remaining_actions", [])
@@ -1375,7 +1392,7 @@ if __name__ == "__main__":
         print(f"{actor_player.name}'s Hand: {actor_player.get_hand_display()}")
 
         turn_message = ""
-        action_input_sim = {}
+        action_input_sim: Dict[str, object] = {}  # Explicitly type action_input_sim
         card_idx_sim = None
 
         if game.pending_action:
@@ -1443,7 +1460,7 @@ if __name__ == "__main__":
                     card_idx_sim = random.randint(0, actor_player.hand_size() - 1)
                     chosen_card_for_rank6 = actor_player.hand[card_idx_sim]
                     if chosen_card_for_rank6.is_wild():
-                        action_input_sim["chosen_color_for_rank_6_wild"] = (  # type: ignore[assignment]
+                        action_input_sim["chosen_color_for_rank_6_wild"] = (
                             random.choice([c for c in Color if c != Color.WILD])
                         )
                 else:
@@ -1452,7 +1469,7 @@ if __name__ == "__main__":
                     )
 
             elif game.pending_action.type == ActionType.CHOOSE_COLOR:
-                action_input_sim["chosen_color"] = random.choice(  # type: ignore[assignment]
+                action_input_sim["chosen_color"] = random.choice(
                     [c for c in Color if c != Color.WILD]
                 )
 

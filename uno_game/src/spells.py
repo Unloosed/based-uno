@@ -49,7 +49,7 @@ class LunarSpells:
         self.spells: Dict[LunarSpellId, Spell] = {}  # Use Enum as key
         self._initialize_spells()
 
-    def _initialize_spells(self):
+    def _initialize_spells(self) -> None:
         # Placeholder Lunar Spells
         self.spells[LunarSpellId.MOONBEAM_DRAW] = Spell(
             name="Moonbeam Draw",
@@ -142,7 +142,7 @@ class SolarSpells:
         self.spells: Dict[SolarSpellId, Spell] = {}  # Use Enum as key
         self._initialize_spells()
 
-    def _initialize_spells(self):
+    def _initialize_spells(self) -> None:
         # Placeholder Solar Spells
         self.spells[SolarSpellId.SUN_FLARE_DISCARD] = Spell(
             name="Sun Flare Discard",
@@ -234,19 +234,19 @@ if __name__ == "__main__":
 
     print("\n--- Merlin's Casts ---")
     success, msg = lunar_magic.cast_spell(
-        player_merlin,  # type: ignore[arg-type]
+        player_merlin,  # type: ignore
         LunarSpellId.MOONBEAM_DRAW,
-        dummy_game,  # type: ignore[arg-type]
-        target_player=player_morgana,  # type: ignore[arg-type]
+        dummy_game,  # type: ignore
+        target_player=player_morgana,  # type: ignore
     )
     print(msg)
     print(f"Merlin's Lunar Mana: {player_merlin.lunar_mana}")
 
     success, msg = solar_magic.cast_spell(
-        player_merlin,  # type: ignore[arg-type]
+        player_merlin,  # type: ignore
         SolarSpellId.SUN_FLARE_DISCARD,
-        dummy_game,  # type: ignore[arg-type]
-        target_player=player_morgana,  # type: ignore[arg-type]
+        dummy_game,  # type: ignore
+        target_player=player_morgana,  # type: ignore
     )
     print(msg)
     print(f"Merlin's Solar Mana: {player_merlin.solar_mana}")
@@ -260,6 +260,8 @@ if __name__ == "__main__":
 
     player_arthur = DummyPlayer("Arthur", lunar=1, solar=1)
     success, msg = lunar_magic.cast_spell(
-        player_arthur, LunarSpellId.LUNAR_SHIELD, dummy_game  # type: ignore[arg-type]
+        player_arthur,  # type: ignore
+        LunarSpellId.LUNAR_SHIELD,
+        dummy_game,  # type: ignore
     )
     print(msg)  # Not enough mana
