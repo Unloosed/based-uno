@@ -1,4 +1,5 @@
 from enum import Enum, auto
+from typing import Optional
 
 
 class Color(Enum):
@@ -81,7 +82,9 @@ class Card:
         """Checks if the card is a Wild or Wild Draw Four."""
         return self.rank in [Rank.WILD, Rank.WILD_DRAW_FOUR]
 
-    def matches(self, other_card, current_color_chosen_for_wild: Color = None) -> bool:
+    def matches(
+        self, other_card: "Card", current_color_chosen_for_wild: Optional[Color] = None
+    ) -> bool:
         """
         Checks if this card can be played on top of other_card.
         current_color_chosen_for_wild is the color chosen if other_card is a Wild card.
@@ -150,7 +153,7 @@ if __name__ == "__main__":
         print(f"Error test for non-wild rank with WILD color: {e}")
 
     try:
-        Card("RED", Rank.SEVEN)
+        Card("RED", Rank.SEVEN)  # type: ignore[arg-type]
     except TypeError as e:
         print(f"Error test for invalid color type: {e}")
 
