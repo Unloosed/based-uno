@@ -234,19 +234,19 @@ if __name__ == "__main__":
 
     print("\n--- Merlin's Casts ---")
     success, msg = lunar_magic.cast_spell(
-        player_merlin,
+        player_merlin,  # type: ignore[arg-type]
         LunarSpellId.MOONBEAM_DRAW,
-        dummy_game,
-        target_player=player_morgana,
+        dummy_game,  # type: ignore[arg-type]
+        target_player=player_morgana,  # type: ignore[arg-type]
     )
     print(msg)
     print(f"Merlin's Lunar Mana: {player_merlin.lunar_mana}")
 
     success, msg = solar_magic.cast_spell(
-        player_merlin,
+        player_merlin,  # type: ignore[arg-type]
         SolarSpellId.SUN_FLARE_DISCARD,
-        dummy_game,
-        target_player=player_morgana,
+        dummy_game,  # type: ignore[arg-type]
+        target_player=player_morgana,  # type: ignore[arg-type]
     )
     print(msg)
     print(f"Merlin's Solar Mana: {player_merlin.solar_mana}")
@@ -260,6 +260,6 @@ if __name__ == "__main__":
 
     player_arthur = DummyPlayer("Arthur", lunar=1, solar=1)
     success, msg = lunar_magic.cast_spell(
-        player_arthur, LunarSpellId.LUNAR_SHIELD, dummy_game
+        player_arthur, LunarSpellId.LUNAR_SHIELD, dummy_game  # type: ignore[arg-type]
     )
     print(msg)  # Not enough mana

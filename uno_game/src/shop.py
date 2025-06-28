@@ -122,13 +122,13 @@ if __name__ == "__main__":
 
     player_alice = DummyPlayer("Alice", 10)
 
-    success, msg = shop.purchase_item(player_alice, ShopEffectId.GAIN_SHUFFLE_TOKEN)
+    success, msg = shop.purchase_item(player_alice, ShopEffectId.GAIN_SHUFFLE_TOKEN)  # type: ignore[arg-type]
     print(msg)
     print(
         f"Alice's coins: {player_alice.coins}, Shuffles: {player_alice.shuffle_counters}"
     )
 
-    success, msg = shop.purchase_item(player_alice, ShopEffectId.DRAW_ONE_LESS)
+    success, msg = shop.purchase_item(player_alice, ShopEffectId.DRAW_ONE_LESS)  # type: ignore[arg-type]
     print(msg)
     print(f"Alice's coins: {player_alice.coins}")
 
@@ -138,6 +138,6 @@ if __name__ == "__main__":
     # For now, we assume valid Enum members are passed.
 
     player_bob = DummyPlayer("Bob", 2)
-    success, msg = shop.purchase_item(player_bob, ShopEffectId.GAIN_SHUFFLE_TOKEN)
+    success, msg = shop.purchase_item(player_bob, ShopEffectId.GAIN_SHUFFLE_TOKEN)  # type: ignore[arg-type]
     print(msg)
     print(f"Bob's coins: {player_bob.coins}")

@@ -168,7 +168,7 @@ if __name__ == "__main__":
 
     # Test adding non-card to discard
     try:
-        deck.add_to_discard("not a card")
+        deck.add_to_discard("not a card")  # type: ignore[arg-type]
     except TypeError as e:
         print(f"Error adding non-card to discard: {e}")
 
