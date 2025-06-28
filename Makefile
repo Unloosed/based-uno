@@ -81,7 +81,7 @@ coverage: $(VENV_DIR)/bin/activate
 .PHONY: run
 run: $(VENV_DIR)/bin/activate
 	@echo ">>> Running Uno game..."
-	$(ACTIVATE) $(PYTHON) uno_game/src/game.py; $(DEACTIVATE)
+	$(ACTIVATE) $(PYTHON) -m uno_game.src.game; $(DEACTIVATE)
 	@echo ">>> Note: This currently runs the example simulation in game.py."
 
 .PHONY: requirements
