@@ -470,15 +470,17 @@ class UnoGame:
                 return True, " ".join(filter(None, message_parts)), None
 
             elif self.pending_action.type == ActionType.DISCARD_FROM_PLAYER_HAND:
-                chooser = actor_for_pending # This is current_turn_player_obj
+                chooser = actor_for_pending  # This is current_turn_player_obj
 
                 victim_idx_raw = self.action_data.get("victim_idx")
                 expected_chooser_idx_raw = self.action_data.get("chooser_idx")
                 num_to_discard_raw = self.action_data.get("count", 2)
 
-                if not isinstance(victim_idx_raw, int) or \
-                   not isinstance(expected_chooser_idx_raw, int) or \
-                   self.players.index(chooser) != expected_chooser_idx_raw:
+                if (
+                    not isinstance(victim_idx_raw, int)
+                    or not isinstance(expected_chooser_idx_raw, int)
+                    or self.players.index(chooser) != expected_chooser_idx_raw
+                ):
                     return (
                         False,
                         "Error: Mismatch or missing context in DISCARD_FROM_PLAYER_HAND.",
@@ -488,7 +490,9 @@ class UnoGame:
                 # Now they are safe to use as int
                 victim_idx: int = victim_idx_raw
                 # expected_chooser_idx: int = expected_chooser_idx_raw # Not directly used after check
-                num_to_discard: int = num_to_discard_raw if isinstance(num_to_discard_raw, int) else 2
+                num_to_discard: int = (
+                    num_to_discard_raw if isinstance(num_to_discard_raw, int) else 2
+                )
 
                 original_blue3_player_idx: int
                 _orig_blue3_idx_raw = self.action_data.get("original_player_idx")
@@ -497,7 +501,6 @@ class UnoGame:
                 else:
                     # Fallback to victim_idx, which we've now confirmed is an int.
                     original_blue3_player_idx = victim_idx
-
 
                 victim = self.players[victim_idx]
                 chosen_indices = (
@@ -555,12 +558,14 @@ class UnoGame:
                 return True, " ".join(filter(None, message_parts)), None
 
             elif self.pending_action.type == ActionType.PLAY_ANY_AND_DRAW_ONE:
-                player_of_rank_6 = original_initiator # original_initiator is already correctly derived
+                player_of_rank_6 = original_initiator  # original_initiator is already correctly derived
                 if actor_for_pending != player_of_rank_6:
                     return False, "Not your turn for Rank 6 effect.", None
 
-                card_idx_for_effect = card_index # This is Optional[int] from play_turn signature
-                color_for_wild_effect_val = ( # Renamed to avoid conflict
+                card_idx_for_effect = (
+                    card_index  # This is Optional[int] from play_turn signature
+                )
+                color_for_wild_effect_val = (  # Renamed to avoid conflict
                     action_input.get("chosen_color_for_rank_6_wild")
                     if action_input
                     else None
@@ -587,8 +592,12 @@ class UnoGame:
                         card_idx_for_effect
                     )
                     # Ensure original_player_idx for Rank 6 is stored if not already the main one
-                    self.action_data["original_player_idx"] = self.players.index(player_of_rank_6)
-                    self.pending_action = GameAction(ActionType.CHOOSE_COLOR, message="Choose color for Rank 6 Wild.")
+                    self.action_data["original_player_idx"] = self.players.index(
+                        player_of_rank_6
+                    )
+                    self.pending_action = GameAction(
+                        ActionType.CHOOSE_COLOR, message="Choose color for Rank 6 Wild."
+                    )
                     return (
                         True,
                         f"{player_of_rank_6.name} chose Wild {card_to_play_freely} for Rank 6. Choose color.",
@@ -598,7 +607,11 @@ class UnoGame:
                 played_card_for_rank_6 = player_of_rank_6.play_card(card_idx_for_effect)
 
                 if played_card_for_rank_6 is None:
-                    return False, "Error playing card for Rank 6 effect.", ActionType.PLAY_ANY_AND_DRAW_ONE
+                    return (
+                        False,
+                        "Error playing card for Rank 6 effect.",
+                        ActionType.PLAY_ANY_AND_DRAW_ONE,
+                    )
 
                 message_parts.append(
                     f"{player_of_rank_6.name} (Rank 6) plays {played_card_for_rank_6} freely."
@@ -607,14 +620,24 @@ class UnoGame:
 
                 active_color_for_effects: Optional[Color] = None
                 if played_card_for_rank_6.is_wild():
-                    if not isinstance(color_for_wild_effect_val, Color): # Should be Color here
-                        return False, "Logic Error: Rank 6 Wild color missing or invalid for effect processing.", None
+                    if not isinstance(
+                        color_for_wild_effect_val, Color
+                    ):  # Should be Color here
+                        return (
+                            False,
+                            "Logic Error: Rank 6 Wild color missing or invalid for effect processing.",
+                            None,
+                        )
                     self.current_wild_color = color_for_wild_effect_val
                     played_card_for_rank_6.active_color = color_for_wild_effect_val
                     active_color_for_effects = color_for_wild_effect_val
-                    message_parts.append(f"Color chosen: {color_for_wild_effect_val.name}.")
+                    message_parts.append(
+                        f"Color chosen: {color_for_wild_effect_val.name}."
+                    )
                 else:
-                    self.current_wild_color = None # Clear wild color if non-wild played
+                    self.current_wild_color = (
+                        None  # Clear wild color if non-wild played
+                    )
                     active_color_for_effects = played_card_for_rank_6.color
 
                 self._award_color_counters(player_of_rank_6, played_card_for_rank_6)
@@ -624,7 +647,9 @@ class UnoGame:
 
                 skip_after_freely_played = False
                 for item_action in actions_from_freely_played:
-                    if item_action.message_override: # Corrected access to .message_override
+                    if (
+                        item_action.message_override
+                    ):  # Corrected access to .message_override
                         message_parts.append(item_action.message_override)
                     if item_action.type == ActionType.GAME_WIN:
                         self.game_over = True
@@ -632,29 +657,42 @@ class UnoGame:
                         break
                     if item_action.type == ActionType.DRAW_CARDS:
                         t_offset_val_item = item_action.target_player_offset
-                        effective_offset_item: int = t_offset_val_item if t_offset_val_item is not None else 1
+                        effective_offset_item: int = (
+                            t_offset_val_item if t_offset_val_item is not None else 1
+                        )
 
                         # original_initiator_idx here refers to the player who started the *entire* turn,
                         # which might not be player_of_rank_6 if Rank 6 was played via another card (e.g. Rank 9).
                         # For effects of the card played by Rank 6, the player is player_of_rank_6.
-                        victim_item_idx_val = self.action_data.get("original_player_idx") # idx of player who played Rank 6 card
+                        victim_item_idx_val = self.action_data.get(
+                            "original_player_idx"
+                        )  # idx of player who played Rank 6 card
                         current_player_for_rank6_effect_idx: int
                         if isinstance(victim_item_idx_val, int):
-                             current_player_for_rank6_effect_idx = victim_item_idx_val
-                        else: # Fallback, should ideally be set
-                             current_player_for_rank6_effect_idx = self.players.index(player_of_rank_6)
+                            current_player_for_rank6_effect_idx = victim_item_idx_val
+                        else:  # Fallback, should ideally be set
+                            current_player_for_rank6_effect_idx = self.players.index(
+                                player_of_rank_6
+                            )
 
                         victim_item = self._get_player_at_offset(
-                           current_player_for_rank6_effect_idx, self.play_direction * effective_offset_item
+                            current_player_for_rank6_effect_idx,
+                            self.play_direction * effective_offset_item,
                         )
-                        draw_val_item = item_action.value if isinstance(item_action.value, int) else 0
+                        draw_val_item = (
+                            item_action.value
+                            if isinstance(item_action.value, int)
+                            else 0
+                        )
                         if draw_val_item > 0:
                             self.player_draws_card(victim_item, draw_val_item)
                     if item_action.type == ActionType.SKIP_PLAYER:
                         skip_after_freely_played = True
                     if item_action.type == ActionType.REVERSE_DIRECTION:
                         self.play_direction *= -1
-                if self.game_over: # Check after processing actions from freely played card
+                if (
+                    self.game_over
+                ):  # Check after processing actions from freely played card
                     return True, " ".join(filter(None, message_parts)), None
 
                 message_parts.append(f"{player_of_rank_6.name} draws 1 card (Rank 6).")
@@ -666,7 +704,9 @@ class UnoGame:
 
                 self.pending_action = None
                 self.action_data.clear()
-                self.current_player_index = idx_to_advance_from # Advance from player who played Rank 6
+                self.current_player_index = (
+                    idx_to_advance_from  # Advance from player who played Rank 6
+                )
                 self._advance_turn_marker()
                 if skip_after_freely_played:
                     message_parts.append(f"{self.get_current_player().name} skipped.")
@@ -674,7 +714,7 @@ class UnoGame:
                 return True, " ".join(filter(None, message_parts)), None
 
             elif self.pending_action.type == ActionType.CHOOSE_COLOR:
-                chosen_color_from_input = ( # Renamed to avoid clash with parameter chosen_color_for_wild
+                chosen_color_from_input = (  # Renamed to avoid clash with parameter chosen_color_for_wild
                     action_input.get("chosen_color") if action_input else None
                 )
                 if (
@@ -684,16 +724,29 @@ class UnoGame:
                     return False, "Invalid color for Wild.", ActionType.CHOOSE_COLOR
 
                 # Help MyPy understand that chosen_color_from_input is now one of the specific non-WILD colors
-                assert chosen_color_from_input in [Color.RED, Color.YELLOW, Color.GREEN, Color.BLUE]
+                assert chosen_color_from_input in [
+                    Color.RED,
+                    Color.YELLOW,
+                    Color.GREEN,
+                    Color.BLUE,
+                ]
 
                 if self.action_data.get("is_for_rank_6_wild"):
-                    rank_6_card_idx_val = self.action_data.pop("rank_6_card_idx_pending_color", None) # Added default None
-                    if rank_6_card_idx_val is None: # Check if key existed
-                        return False, "Error: Rank 6 CHOOSE_COLOR context missing card index.", None
+                    rank_6_card_idx_val = self.action_data.pop(
+                        "rank_6_card_idx_pending_color", None
+                    )  # Added default None
+                    if rank_6_card_idx_val is None:  # Check if key existed
+                        return (
+                            False,
+                            "Error: Rank 6 CHOOSE_COLOR context missing card index.",
+                            None,
+                        )
 
-                    self.action_data.pop("is_for_rank_6_wild", None) # Remove safely
+                    self.action_data.pop("is_for_rank_6_wild", None)  # Remove safely
 
-                    player_for_rank_6_idx_val = self.action_data.get("original_player_idx")
+                    player_for_rank_6_idx_val = self.action_data.get(
+                        "original_player_idx"
+                    )
                     player_for_rank_6_idx: int
                     if isinstance(player_for_rank_6_idx_val, int):
                         player_for_rank_6_idx = player_for_rank_6_idx_val
@@ -705,12 +758,14 @@ class UnoGame:
                     message_parts.append(
                         f"{player_for_rank_6.name} chose {chosen_color_from_input.name} for Rank 6 Wild."
                     )
-                    self.pending_action = GameAction(ActionType.PLAY_ANY_AND_DRAW_ONE) # Re-set pending action
+                    self.pending_action = GameAction(
+                        ActionType.PLAY_ANY_AND_DRAW_ONE
+                    )  # Re-set pending action
                     # Call play_turn again, now with the chosen color for the wild part of Rank 6
                     return self.play_turn(
-                        player_for_rank_6, # Actor is player_of_rank_6
-                        card_index=rank_6_card_idx_val, # The card they are playing via Rank 6
-                        action_input={ # Pass chosen color
+                        player_for_rank_6,  # Actor is player_of_rank_6
+                        card_index=rank_6_card_idx_val,  # The card they are playing via Rank 6
+                        action_input={  # Pass chosen color
                             "chosen_color_for_rank_6_wild": chosen_color_from_input
                         },
                     )
@@ -726,11 +781,20 @@ class UnoGame:
 
                     player_who_chose = self.players[player_who_chose_idx]
 
-                    if not card_that_was_wild :
-                        return False, "Error: CHOOSE_COLOR context missing card_played.", None
-                    if not isinstance(card_that_was_wild, Card): # Make sure it is a Card
-                        return False, "Error: CHOOSE_COLOR context card_played is not a Card instance.", None
-
+                    if not card_that_was_wild:
+                        return (
+                            False,
+                            "Error: CHOOSE_COLOR context missing card_played.",
+                            None,
+                        )
+                    if not isinstance(
+                        card_that_was_wild, Card
+                    ):  # Make sure it is a Card
+                        return (
+                            False,
+                            "Error: CHOOSE_COLOR context card_played is not a Card instance.",
+                            None,
+                        )
 
                     self.current_wild_color = chosen_color_from_input  # type: ignore[assignment]
                     card_that_was_wild.active_color = chosen_color_from_input
@@ -743,23 +807,34 @@ class UnoGame:
                     self.action_data.clear()
                     skip_after_wild = False
                     for rem_action in remaining_actions:
-                        if rem_action.message_override: # Corrected access to .message_override
+                        if (
+                            rem_action.message_override
+                        ):  # Corrected access to .message_override
                             message_parts.append(rem_action.message_override)
                         if rem_action.type == ActionType.DRAW_CARDS:
                             t_offset_val_rem = rem_action.target_player_offset
-                            current_operation_offset_rem: int = t_offset_val_rem if t_offset_val_rem is not None else 1
-
-                            victim_rem = self._get_player_at_offset(
-                                player_who_chose_idx, self.play_direction * current_operation_offset_rem
+                            current_operation_offset_rem: int = (
+                                t_offset_val_rem if t_offset_val_rem is not None else 1
                             )
 
-                            draw_value_rem = rem_action.value if isinstance(rem_action.value, int) else 0
+                            victim_rem = self._get_player_at_offset(
+                                player_who_chose_idx,
+                                self.play_direction * current_operation_offset_rem,
+                            )
+
+                            draw_value_rem = (
+                                rem_action.value
+                                if isinstance(rem_action.value, int)
+                                else 0
+                            )
                             if draw_value_rem > 0:
                                 self.player_draws_card(victim_rem, draw_value_rem)
                         if rem_action.type == ActionType.SKIP_PLAYER:
                             skip_after_wild = True
 
-                    self.current_player_index = player_who_chose_idx # Advance from player who chose color
+                    self.current_player_index = (
+                        player_who_chose_idx  # Advance from player who chose color
+                    )
                     self._advance_turn_marker()
                     if skip_after_wild:
                         message_parts.append(
@@ -878,9 +953,12 @@ class UnoGame:
                     )
             elif action.type == ActionType.DRAW_CARDS:
                 t_offset_val = action.target_player_offset
-                draw_effective_offset: int = t_offset_val if t_offset_val is not None else 1
+                draw_effective_offset: int = (
+                    t_offset_val if t_offset_val is not None else 1
+                )
                 victim = self._get_player_at_offset(
-                    self.players.index(player), self.play_direction * draw_effective_offset
+                    self.players.index(player),
+                    self.play_direction * draw_effective_offset,
                 )
                 draw_value = action.value if isinstance(action.value, int) else 0
                 if draw_value > 0:
@@ -906,12 +984,15 @@ class UnoGame:
                     offset_val = action.target_player_offset
                     # For DISCARD_FROM_PLAYER_HAND, target_player_offset should be set.
                     # Defaulting to -self.play_direction as per its typical setup, if None (though unlikely).
-                    discard_effective_offset: int = offset_val if offset_val is not None else -self.play_direction
+                    discard_effective_offset: int = (
+                        offset_val if offset_val is not None else -self.play_direction
+                    )
 
                     self.action_data["chooser_idx"] = self.players.index(
                         self._get_player_at_offset(
                             self.players.index(player),
-                            self.play_direction * discard_effective_offset, # Now using int
+                            self.play_direction
+                            * discard_effective_offset,  # Now using int
                         )
                     )
                     self.action_data["victim_idx"] = self.players.index(
@@ -988,17 +1069,25 @@ class UnoGame:
                                     break
                             elif sub_a.type == ActionType.DRAW_CARDS:
                                 t_offset_sub_val = sub_a.target_player_offset
-                                effective_offset_sub: int = t_offset_sub_val if t_offset_sub_val is not None else 1
+                                effective_offset_sub: int = (
+                                    t_offset_sub_val
+                                    if t_offset_sub_val is not None
+                                    else 1
+                                )
                                 victim_sub = self._get_player_at_offset(
                                     self.players.index(player),
                                     self.play_direction * effective_offset_sub,
                                 )
-                                draw_value_sub = sub_a.value if isinstance(sub_a.value, int) else 0
+                                draw_value_sub = (
+                                    sub_a.value if isinstance(sub_a.value, int) else 0
+                                )
                                 if draw_value_sub > 0:
                                     self.player_draws_card(victim_sub, draw_value_sub)
-                                if effective_offset_sub == 1: # Check based on effective_offset_sub
+                                if (
+                                    effective_offset_sub == 1
+                                ):  # Check based on effective_offset_sub
                                     rank9_card_ends_turn = (
-                                        True # If it's a Draw affecting next player
+                                        True  # If it's a Draw affecting next player
                                     )
                             elif sub_a.type == ActionType.SKIP_PLAYER:
                                 temp_skip_for_rank9_card = True
@@ -1150,9 +1239,12 @@ class UnoGame:
                     break
                 if action.type == ActionType.DRAW_CARDS:
                     t_offset_val = action.target_player_offset
-                    effective_offset: int = t_offset_val if t_offset_val is not None else 1
+                    effective_offset: int = (
+                        t_offset_val if t_offset_val is not None else 1
+                    )
                     victim = self._get_player_at_offset(
-                        self.players.index(player), self.play_direction * effective_offset
+                        self.players.index(player),
+                        self.play_direction * effective_offset,
                     )
                     draw_value = action.value if isinstance(action.value, int) else 0
                     if draw_value > 0:
@@ -1199,17 +1291,30 @@ class UnoGame:
         if self.pending_action:
             # Determine actor for pending action message
             # Try specific keys first, then fall back. Ensure type safety for player index.
-            _actor_idx_val = self.action_data.get("original_player_idx") # Most common for multi-step
+            _actor_idx_val = self.action_data.get(
+                "original_player_idx"
+            )  # Most common for multi-step
             if not isinstance(_actor_idx_val, int):
-                _actor_idx_val = self.action_data.get("player_idx") # For CHOOSE_COLOR by current player
-            if not isinstance(_actor_idx_val, int) and self.pending_action.type == ActionType.DISCARD_FROM_PLAYER_HAND:
-                _actor_idx_val = self.action_data.get("chooser_idx") # Specific to DISCARD
+                _actor_idx_val = self.action_data.get(
+                    "player_idx"
+                )  # For CHOOSE_COLOR by current player
+            if (
+                not isinstance(_actor_idx_val, int)
+                and self.pending_action.type == ActionType.DISCARD_FROM_PLAYER_HAND
+            ):
+                _actor_idx_val = self.action_data.get(
+                    "chooser_idx"
+                )  # Specific to DISCARD
             # victim_idx is not who acts, but who is acted upon or initiated.
 
-            if isinstance(_actor_idx_val, int) and (0 <= _actor_idx_val < len(self.players)):
+            if isinstance(_actor_idx_val, int) and (
+                0 <= _actor_idx_val < len(self.players)
+            ):
                 pending_action_for_whom = self.players[_actor_idx_val].name
-            elif "player" in self.action_data and isinstance(self.action_data["player"], Player): # Fallback for old SWAP logic
-                 pending_action_for_whom = self.action_data["player"].name
+            elif "player" in self.action_data and isinstance(
+                self.action_data["player"], Player
+            ):  # Fallback for old SWAP logic
+                pending_action_for_whom = self.action_data["player"].name
             # else, pending_action_for_whom remains current_player_obj.name (default)
 
         status.append(f"Current Player: {current_player_obj.name}")
@@ -1400,9 +1505,15 @@ if __name__ == "__main__":
                 if actor_player.has_get_out_of_jail_card():
                     y4 = actor_player.get_out_of_jail_yellow_4
                     top_card_for_y4_check = game.get_top_card()
-                    if y4 and top_card_for_y4_check and y4.matches(top_card_for_y4_check, game.current_wild_color):
+                    if (
+                        y4
+                        and top_card_for_y4_check
+                        and y4.matches(top_card_for_y4_check, game.current_wild_color)
+                    ):
                         actor_player.use_get_out_of_jail_card()
-                        game.deck.add_to_discard(y4) # y4 is Card, add_to_discard expects Card
+                        game.deck.add_to_discard(
+                            y4
+                        )  # y4 is Card, add_to_discard expects Card
                         game.current_wild_color = None
                         game._award_color_counters(actor_player, y4)
                         turn_message = (
