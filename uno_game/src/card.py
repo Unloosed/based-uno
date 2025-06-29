@@ -97,6 +97,16 @@ class Card:
         # Standard match: color or rank
         return self.color == other_card.color or self.rank == other_card.rank
 
+    def to_dict(self):
+        """Returns a dictionary representation of the card."""
+        return {
+            "color": self.color.name,
+            "rank": self.rank.name,
+            "value_str": str(self.rank), # For display like "7" or "SKIP"
+            "active_color": self.active_color.name if self.active_color else self.color.name,
+            "display_str": str(self),
+        }
+
 
 if __name__ == "__main__":
     # Test basic card creation
