@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-T">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uno Game</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Opponent Areas -->
+        <div id="opponent-area-top" class="opponent-area">
+            <div id="player-2-area" class="player-info-area">
+                <h3 class="player-name">Player 2</h3>
+                <div class="player-hand opponent-hand">
+                    <!-- Opponent 1 cards will be represented here, likely just card backs -->
+                </div>
+                <div class="player-counters">
+                    <!-- P2 Counters -->
+                </div>
+            </div>
+        </div>
+
+        <div id="middle-area">
+            <div id="opponent-area-left" class="opponent-area side-opponent">
+                <div id="player-3-area" class="player-info-area">
+                    <h3 class="player-name">Player 3</h3>
+                    <div class="player-hand opponent-hand">
+                        <!-- Opponent 2 cards -->
+                    </div>
+                    <div class="player-counters">
+                        <!-- P3 Counters -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Game Table Area -->
+            <div id="game-table">
+                <div id="draw-pile-area" class="pile-area">
+                    <p>Draw Pile</p>
+                    <div id="draw-pile" class="card-pile">
+                        <div class="card-back" id="draw-pile-card"></div>
+                        <span id="draw-pile-count">108</span>
+                    </div>
+                </div>
+                <div id="discard-pile-area" class="pile-area">
+                    <p>Discard Pile</p>
+                    <div id="discard-pile" class="card-pile">
+                        <!-- Top card of discard pile will be shown here -->
+                    </div>
+                    <div id="current-wild-color-indicator"></div>
+                </div>
+            </div>
+
+            <div id="opponent-area-right" class="opponent-area side-opponent">
+                 <div id="player-4-area" class="player-info-area">
+                    <h3 class="player-name">Player 4</h3>
+                    <div class="player-hand opponent-hand">
+                        <!-- Opponent 3 cards -->
+                    </div>
+                     <div class="player-counters">
+                        <!-- P4 Counters -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current Player Area -->
+        <div id="current-player-area" class="player-area">
+            <div id="player-1-area" class="player-info-area">
+                <h3 class="player-name" id="current-player-name">Player 1 (You)</h3>
+                 <div class="player-counters">
+                    <!-- P1 Counters: Coins, Shuffles, Lunar, Solar -->
+                 </div>
+                <div id="player-hand-current" class="player-hand current-player-hand">
+                    <!-- Current player's cards will be dynamically added here by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Info and Actions -->
+        <div id="game-info-area">
+            <h2>Game Info</h2>
+            <p id="current-turn-indicator">Turn: Player 1</p>
+            <div id="game-messages">
+                <p>Welcome to Uno!</p>
+                <!-- Game messages will be added here -->
+            </div>
+            <div id="action-buttons">
+                <button id="uno-button">UNO!</button>
+                <button id="pass-button">Pass Turn / Cannot Play</button>
+                <!-- More buttons might be added dynamically e.g. for special actions -->
+            </div>
+            <div id="color-chooser" style="display: none;">
+                <p>Choose a color:</p>
+                <button class="color-choice-button" data-color="RED">Red</button>
+                <button class="color-choice-button" data-color="YELLOW">Yellow</button>
+                <button class="color-choice-button" data-color="GREEN">Green</button>
+                <button class="color-choice-button" data-color="BLUE">Blue</button>
+            </div>
+             <div id="special-action-prompt" style="display: none;">
+                <!-- For prompts like "Choose a card to give" -->
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
