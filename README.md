@@ -48,7 +48,34 @@ make run
 ```
 This will execute `uno_game/src/game.py`, which might contain a basic game simulation loop.
 
-(A proper CLI entry point is planned for the future).
+### Running the Web Server (for API access)
+
+A simple Flask web server is available to expose game logic via an API. This is intended for development and integration with a potential frontend.
+
+1.  **Ensure dependencies are installed:**
+    If you haven't already, set up the project and install dependencies:
+    ```bash
+    make setup
+    ```
+
+2.  **Activate the virtual environment:**
+    ```bash
+    source .venv/bin/activate
+    ```
+
+3.  **Run the server:**
+    ```bash
+    ./run.sh
+    ```
+    This will start the Flask development server, typically on `http://0.0.0.0:5000/`.
+
+    The main API endpoint available is:
+    *   `GET /api/game_state`: Returns the current state of the Uno game. You can access this in your browser or with a tool like `curl`:
+        ```bash
+        curl http://localhost:5000/api/game_state
+        ```
+
+(A proper CLI entry point for the game itself is planned for the future).
 
 ## Development
 

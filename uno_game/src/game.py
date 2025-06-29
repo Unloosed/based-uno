@@ -1363,6 +1363,55 @@ class UnoGame:
         status.append(f"Draw pile size: {len(self.deck.cards)}")
         return "\n".join(status)
 
+    def to_dict(self) -> Dict:
+        """Serializes the game state to a dictionary for API responses."""
+        top_card = self.get_top_card()
+        return {
+            "players": [
+                {
+                    "name": p.name,
+                    "card_count": p.hand_size(),
+                    "coins": p.coins,
+                    "shuffle_counters": p.shuffle_counters,
+                    "lunar_mana": p.lunar_mana,
+                    "solar_mana": p.solar_mana,
+                    "has_get_out_of_jail_card": p.get_out_of_jail_yellow_4 is not None,
+                }
+                for p in self.players
+            ],
+            "current_player_index": self.current_player_index,
+            "current_player_name": self.get_current_player().name,
+            "top_card": top_card.to_dict() if top_card else None,
+            "current_wild_color": self.current_wild_color.name if self.current_wild_color else None,
+            "discard_pile_size": len(self.deck.discard_pile),
+            "draw_pile_size": len(self.deck.cards),
+            "game_over": self.game_over,
+            "winner": self.winner.name if self.winner else None,
+            "play_direction": "Forward" if self.play_direction == 1 else "Backward",
+            "pending_action": self.pending_action.type.name if self.pending_action else None,
+            "action_data": self._serialize_action_data(),
+            "game_status_string": self.get_game_status(), # For debugging or full text status
+        }
+
+    def _serialize_action_data(self) -> Dict:
+        """Helper to serialize action_data, handling Card objects."""
+        if not self.action_data:
+            return {}
+
+        serialized_data = {}
+        for key, value in self.action_data.items():
+            if isinstance(value, Card):
+                serialized_data[key] = value.to_dict()
+            elif isinstance(value, list) and all(isinstance(item, Card) for item in value):
+                serialized_data[key] = [item.to_dict() for item in value]
+            elif isinstance(value, ActionType): # Enum
+                 serialized_data[key] = value.name
+            # Add more types here if needed, e.g., Player objects, other enums
+            # For now, assume other values are directly serializable (int, str, bool, dict of serializable, list of serializable)
+            else:
+                serialized_data[key] = value
+        return serialized_data
+
 
 if __name__ == "__main__":
     game = UnoGame(["Alice", "Bob", "Charlie", "Dave"])
