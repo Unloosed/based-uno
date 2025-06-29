@@ -8,9 +8,31 @@ app = Flask(__name__)
 
 # Initialize a global game instance for simplicity
 # In a real application, you'd manage game instances differently (e.g., sessions, database)
+
+# मानव_खिलाड़ी_का_नाम will be determined by the player with type "HUMAN" in player_configurations
+# Defaulting to "Player 1" if none are explicitly set as HUMAN during configuration.
+
 try:
     # Using a default set of players for now. This could be configurable.
-    game = UnoGame(player_names=["Player 1", "CPU 1", "CPU 2", "CPU 3"])
+    player_configurations = [
+        ("Player 1", "HUMAN"), # Explicitly set the first player as HUMAN
+        ("CPU 1", "CPU"),
+        ("CPU 2", "CPU"),
+        ("CPU 3", "CPU"),
+    ]
+    # Filter out None or empty names, adjust as needed for your setup
+    active_players = [p for p in player_configurations if p[0]]
+
+    # Ensure there's at least one human and some CPUs, or however you want to define min players
+    if not any(p[1] == "HUMAN" for p in active_players):
+        # Fallback or error if no human player is configured
+        print("Warning: No human player configured. Defaulting to first player as human.")
+        if not active_players: # e.g. if all names were empty
+             active_players = [("Player 1", "HUMAN"), ("CPU 1", "CPU")] # Default if empty
+        elif active_players[0][1] != "HUMAN": # If first player is not human, make them
+            active_players[0] = (active_players[0][0], "HUMAN")
+
+    game = UnoGame(player_info=active_players)
 except ValueError as e:
     print(f"Error initializing game: {e}")
     game = None
@@ -324,112 +346,55 @@ def cpu_play_turn():
     if player != current_player_obj:
         return jsonify({"error": f"It's not {player_name}'s turn (CPU). Current player: {current_player_obj.name}"}), 403
 
-    if मानव_खिलाड़ी_का_नाम is not None and player_name.lower() == मानव_खिलाड़ी_का_नाम.lower() : # A safeguard, though client should prevent this
-         return jsonify({"error": "This endpoint is for CPU players."}), 400
+    if player.player_type != "CPU": # Ensure it's a CPU player
+         return jsonify({"error": "This endpoint is for CPU players only."}), 400
 
+    if game.game_over:
+        return jsonify({"error": "Game is already over."}), 400
 
-    # Simulate CPU playing a turn.
-    # This logic is adapted from the __main__ block of uno_game/src/game.py
-    # It's a simplified version for API context.
-    # A more robust solution would involve moving CPU decision logic into Player or Game class.
-    message = f"CPU {player.name} is thinking..."
-    action_taken = False
+    # Get CPU's action from the game logic
+    cpu_card_index, cpu_chosen_color, cpu_action_input = game.get_cpu_action(player)
 
-    if game.pending_action:
-        # Simplified: If CPU has a pending action, it's complex.
-        # For now, assume CPU doesn't get into complex pending states or auto-resolves simple ones.
-        # A real CPU AI would need to handle these.
-        # Example: If CHOOSE_COLOR is pending for a CPU.
-        if game.pending_action.type == ActionType.CHOOSE_COLOR:
-            # Check if this CPU is the one to choose color
-            expected_actor_idx = game.action_data.get("player_idx", game.action_data.get("original_player_idx"))
-            if expected_actor_idx is not None and game.players[expected_actor_idx] == player:
-                chosen_color = random.choice([c for c in Color if c != Color.WILD])
-                card_idx_for_pending = None
-                if game.action_data.get("is_for_rank_6_wild"):
-                    card_idx_for_pending = game.action_data.get("rank_6_card_idx_pending_color")
+    success: bool = False
+    message: str = ""
+    next_action_prompt: Optional[ActionType] = None
 
-                success_cpu_pending, msg_cpu_pending, next_prompt_cpu_pending = game.play_turn(
-                    player,
-                    card_index=card_idx_for_pending,
-                    action_input={"chosen_color": chosen_color,
-                                  "chosen_color_for_rank_6_wild": chosen_color if game.action_data.get("is_for_rank_6_wild") else None}
-                )
-                message = msg_cpu_pending
-                action_taken = success_cpu_pending
-            else:
-                message = f"CPU {player.name} has a pending action ({game.pending_action.type.name}) but is not the designated actor, or it's too complex to auto-resolve."
-        else:
-            message = f"CPU {player.name} has a pending action ({game.pending_action.type.name}) that cannot be auto-resolved by this simple API."
-            # To prevent getting stuck, we might advance turn if no action taken, but that's risky.
-            # For now, it will just return this message. The game state won't change.
+    if cpu_card_index is not None: # CPU wants to play a card (or take action involving a card from hand for pending)
+        success, message, next_action_prompt = game.play_turn(
+            player,
+            card_index=cpu_card_index,
+            action_input=cpu_action_input, # This will have specific inputs for pending actions like SWAP, DISCARD etc.
+            chosen_color_for_wild=cpu_chosen_color # For regular wild plays or wild part of Rank 6
+        )
+    elif cpu_action_input is not None: # CPU has input for a pending action that doesn't involve playing a card from hand now (e.g. CHOOSE_COLOR)
+        success, message, next_action_prompt = game.play_turn(
+            player,
+            card_index=None, # No card is being played from hand in this step of the pending action
+            action_input=cpu_action_input,
+            chosen_color_for_wild=cpu_chosen_color # This might be set if action_input includes a color choice
+        )
+    else: # CPU chooses to draw (or no other action determined by get_cpu_action)
+        # This can also be the case if get_cpu_action returns (None, None, None) for a complex pending action it can't handle.
+        # player_cannot_play_action will then try to draw a card for the CPU.
+        # If even drawing is not possible (e.g. pending action blocks it), it will return success=False.
+        success, message = game.player_cannot_play_action(player)
 
-    else: # No pending action, normal CPU turn
-        top_card_sim = game.get_top_card()
-        playable_cards_indices = []
-        if top_card_sim:
-            playable_cards_indices = [
-                i for i, card_obj in enumerate(player.hand)
-                if card_obj.matches(top_card_sim, game.current_wild_color)
-            ]
+    if not success and not game.game_over : # game.game_over might be true if CPU drew last card and won
+        # If the action failed and game not over, return error
+        # message already contains the reason from play_turn or player_cannot_play_action
+        return jsonify({"error": message, "game_state": game.to_dict(), "next_action_prompt": next_action_prompt.name if next_action_prompt else None}), 400
 
-        if playable_cards_indices:
-            card_idx_sim = random.choice(playable_cards_indices)
-            card_being_played = player.hand[card_idx_sim]
-            chosen_color_sim_val = None
-            if card_being_played.is_wild():
-                chosen_color_sim_val = random.choice([c for c in Color if c != Color.WILD])
-
-            success_cpu, msg_cpu, _ = game.play_turn(
-                player, card_idx_sim, chosen_color_for_wild=chosen_color_sim_val
-            )
-            message = msg_cpu
-            action_taken = success_cpu
-        else:
-            # CPU tries to use Yellow 4 if applicable
-            played_y4 = False
-            if player.has_get_out_of_jail_card():
-                y4 = player.get_out_of_jail_yellow_4
-                top_card_for_y4_check = game.get_top_card()
-                if y4 and top_card_for_y4_check and y4.matches(top_card_for_y4_check, game.current_wild_color):
-                    player.use_get_out_of_jail_card()
-                    game.deck.add_to_discard(y4)
-                    game.current_wild_color = None # Yellow 4 is not wild
-                    game._award_color_counters(player, y4) # Award for Yellow
-                    message = f"CPU {player.name} used 'Get Out of Jail Free' Yellow 4."
-                    if player.is_hand_empty():
-                        game.game_over = True
-                        game.winner = player
-                        message += " And WINS!"
-                    else:
-                        # Advance turn after playing Y4
-                        game.current_player_index = game.players.index(player)
-                        game._advance_turn_marker()
-                    action_taken = True
-                    played_y4 = True
-                # else: # Cannot play Y4, put it back (already handled by has_get_out_of_jail_card logic)
-                #    player.store_yellow_4_get_out_of_jail(y4) # this is wrong, store is for initial acquisition
-
-            if not played_y4:
-                success_cpu_draw, msg_cpu_draw = game.player_cannot_play_action(player)
-                message = msg_cpu_draw
-                action_taken = success_cpu_draw
-
-    if not action_taken and not game.game_over:
-        # If CPU somehow failed to make a move (e.g. complex pending action it couldn't handle)
-        # and game isn't over, log this. The turn technically doesn't advance here.
-        # A more sophisticated CPU might try something else or this indicates a game state issue.
-        message += " (CPU took no conclusive action this turn via API)"
-
-
-    return jsonify({"message": message, "game_state": game.to_dict()})
+    return jsonify({
+        "message": message,
+        "game_state": game.to_dict(),
+        "next_action_prompt": next_action_prompt.name if next_action_prompt else None
+    })
 
 
 # Need to import random for CPU logic
 import random
 
-# Placeholder for human player name, can be set by client if necessary
-मानव_खिलाड़ी_का_नाम = "Player 1"
+# मानव_खिलाड़ी_का_नाम is no longer needed here, it's part of player_info
 
 # Serve static files (HTML, CSS, JS)
 from flask import send_from_directory

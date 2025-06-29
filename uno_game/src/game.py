@@ -8,14 +8,14 @@ from .actions import ActionType, GameAction
 
 
 class UnoGame:
-    def __init__(self, player_names: List[str], initial_hand_size: int = 7):
-        if not 2 <= len(player_names) <= 4:
+    def __init__(self, player_info: List[Tuple[str, str]], initial_hand_size: int = 7):
+        if not 2 <= len(player_info) <= 4:
             raise ValueError("UnoGame requires 2 to 4 players.")
         if initial_hand_size <= 0:
             raise ValueError("Initial hand size must be positive.")
 
         self.deck = Deck()
-        self.players: List[Player] = [Player(name) for name in player_names]
+        self.players: List[Player] = [Player(name, p_type) for name, p_type in player_info]
         self.initial_hand_size = initial_hand_size
 
         self.current_player_index: int = 0
@@ -1363,6 +1363,148 @@ class UnoGame:
         status.append(f"Draw pile size: {len(self.deck.cards)}")
         return "\n".join(status)
 
+    def get_cpu_action(self, player: Player) -> Tuple[Optional[int], Optional[Color], Optional[Dict]]:
+        """
+        Determines the action for a CPU player.
+        Returns:
+            - card_index (Optional[int]): Index of card to play, or None to draw.
+            - chosen_color (Optional[Color]): Color chosen for a Wild card.
+            - action_input (Optional[Dict]): Dictionary for pending actions.
+        """
+        # Placeholder for CPU logic
+        # For now, very basic: find first playable card, or draw.
+        # Needs to handle pending actions properly.
+
+        # Step 1: Handle pending actions if any are for this player
+        if self.pending_action and self.action_data:
+            pending_type = self.pending_action.type
+
+            # Determine if the current CPU player is the one to act on the pending action
+            is_actor_for_pending = False
+            actor_idx = -1
+            if pending_type == ActionType.CHOOSE_COLOR:
+                idx_key = "original_player_idx" if self.action_data.get("is_for_rank_6_wild") else "player_idx"
+                actor_idx = self.action_data.get(idx_key, -1)
+            elif pending_type in [ActionType.SWAP_CARD_RIGHT, ActionType.SWAP_CARD_ANY, ActionType.PLAY_ANY_AND_DRAW_ONE]:
+                actor_idx = self.action_data.get("original_player_idx", -1)
+            elif pending_type == ActionType.DISCARD_FROM_PLAYER_HAND:
+                actor_idx = self.action_data.get("chooser_idx", -1)
+
+            if actor_idx != -1 and self.players[actor_idx] == player:
+                is_actor_for_pending = True
+
+            if is_actor_for_pending:
+                action_input_payload: Dict[str, object] = {}
+                card_idx_for_action: Optional[int] = None
+                chosen_color_for_action: Optional[Color] = None
+
+                if pending_type == ActionType.CHOOSE_COLOR:
+                    chosen_color_for_action = random.choice([c for c in Color if c != Color.WILD])
+                    action_input_payload["chosen_color"] = chosen_color_for_action
+                    # If this CHOOSE_COLOR is for a Rank 6 Wild, play_turn expects chosen_color_for_rank_6_wild in action_input
+                    if self.action_data.get("is_for_rank_6_wild"):
+                        action_input_payload["chosen_color_for_rank_6_wild"] = chosen_color_for_action
+                        # play_turn also needs the card_index of the wild card played by Rank 6
+                        card_idx_for_action = self.action_data.get("rank_6_card_idx_pending_color")
+                    return card_idx_for_action, chosen_color_for_action, action_input_payload
+
+                elif pending_type == ActionType.SWAP_CARD_RIGHT:
+                    if not player.is_hand_empty():
+                        action_input_payload["card_to_give_idx"] = 0 # Give first card
+                    else: # Should not happen if game logic is correct
+                        action_input_payload["card_to_give_idx"] = 0
+
+                    player_to_right = self._get_player_at_offset(self.players.index(player), self.play_direction)
+                    if not player_to_right.is_hand_empty():
+                        action_input_payload["card_to_take_idx"] = 0 # Take first card
+                    else:
+                         action_input_payload["card_to_take_idx"] = 0
+                    return None, None, action_input_payload
+
+                elif pending_type == ActionType.SWAP_CARD_ANY:
+                    # Target player
+                    possible_targets = [i for i, p in enumerate(self.players) if p != player]
+                    if not possible_targets: # Should not happen in a >1 player game
+                        return None, None, None # Cannot fulfill
+
+                    target_player_idx = random.choice(possible_targets)
+                    # Phase 1: CPU chooses target player if not already chosen by the game logic
+                    if "target_player_idx" not in self.action_data:
+                        possible_targets = [i for i, p_other in enumerate(self.players) if p_other != player]
+                        if not possible_targets: return None, None, None # Should not happen
+                        chosen_target_idx = random.choice(possible_targets)
+                        action_input_payload["target_player_idx"] = chosen_target_idx
+                        # Return only the target player index, play_turn will ask for cards next
+                        return None, None, action_input_payload
+
+                    # Phase 2: Target player is known (from self.action_data), CPU chooses cards
+                    else:
+                        # card_to_give_idx
+                        if not player.is_hand_empty():
+                            action_input_payload["card_to_give_idx"] = 0 # Give first card
+                        else: # Should be handled by game logic if hand empty before this
+                            action_input_payload["card_to_give_idx"] = 0
+
+                        # card_to_take_idx
+                        # Target player is self.players[self.action_data["target_player_idx"]]
+                        target_player_for_swap = self.players[self.action_data["target_player_idx"]]
+                        if not target_player_for_swap.is_hand_empty():
+                            action_input_payload["card_to_take_idx"] = 0 # Take first card
+                        else:
+                            action_input_payload["card_to_take_idx"] = 0
+
+                        # Include target_player_idx for clarity in the payload to play_turn, though it's already in self.action_data
+                        action_input_payload["target_player_idx"] = self.action_data["target_player_idx"]
+                        return None, None, action_input_payload
+
+
+                elif pending_type == ActionType.DISCARD_FROM_PLAYER_HAND: # CPU is chooser
+                    victim = self.players[self.action_data["victim_idx"]]
+                    num_to_discard = self.action_data.get("count", 2)
+                    actual_to_discard_count = min(num_to_discard, victim.hand_size())
+                    if victim.hand_size() > 0 and actual_to_discard_count > 0 :
+                        action_input_payload["chosen_indices_from_victim"] = random.sample(
+                            range(victim.hand_size()), actual_to_discard_count
+                        )
+                    else:
+                        action_input_payload["chosen_indices_from_victim"] = []
+                    return None, None, action_input_payload
+
+                elif pending_type == ActionType.PLAY_ANY_AND_DRAW_ONE: # CPU played Rank 6, now plays another card
+                    if not player.is_hand_empty():
+                        card_idx_for_action = 0 # Play the first card
+                        card_to_play_freely = player.hand[card_idx_for_action]
+                        if card_to_play_freely.is_wild():
+                            chosen_color_for_action = random.choice([c for c in Color if c != Color.WILD])
+                            action_input_payload["chosen_color_for_rank_6_wild"] = chosen_color_for_action
+                        return card_idx_for_action, chosen_color_for_action, action_input_payload
+                    else: # Hand is empty, cannot play a card for Rank 6 effect
+                        return None, None, None # Pass turn essentially
+
+        # Step 2: Standard turn, no pending action for this CPU or pending action was not handled above
+        top_card = self.get_top_card()
+        if not top_card: # Should not happen in a normal game
+            return None, None, None
+
+        playable_cards = []
+        for i, card in enumerate(player.hand):
+            if card.matches(top_card, self.current_wild_color):
+                playable_cards.append({"index": i, "card": card})
+
+        if playable_cards:
+            # Simple strategy: play the first playable card
+            chosen_play = playable_cards[0]
+            card_to_play = chosen_play["card"]
+            card_idx_to_play = chosen_play["index"]
+
+            color_for_wild: Optional[Color] = None
+            if card_to_play.is_wild():
+                color_for_wild = random.choice([c for c in Color if c != Color.WILD])
+            return card_idx_to_play, color_for_wild, None
+        else:
+            # No playable cards, CPU must draw
+            return None, None, None
+
     def to_dict(self) -> Dict:
         """Serializes the game state to a dictionary for API responses."""
         top_card = self.get_top_card()
@@ -1370,12 +1512,16 @@ class UnoGame:
             "players": [
                 {
                     "name": p.name,
+                    "player_type": p.player_type,
                     "card_count": p.hand_size(),
                     "coins": p.coins,
                     "shuffle_counters": p.shuffle_counters,
                     "lunar_mana": p.lunar_mana,
                     "solar_mana": p.solar_mana,
                     "has_get_out_of_jail_card": p.get_out_of_jail_yellow_4 is not None,
+                    # Include hand for human player if needed by frontend for initial load or direct display
+                    # "hand": [card.to_dict() for card in p.hand] if p.player_type == "HUMAN" else None
+                    # For now, hand is usually fetched by specific player context in frontend after identifying human player
                 }
                 for p in self.players
             ],
@@ -1414,7 +1560,13 @@ class UnoGame:
 
 
 if __name__ == "__main__":
-    game = UnoGame(["Alice", "Bob", "Charlie", "Dave"])
+    player_setup = [
+        ("Alice", "HUMAN"),
+        ("Bob", "CPU"),
+        ("Charlie", "CPU"),
+        ("Dave", "CPU"),
+    ]
+    game = UnoGame(player_info=player_setup)
     print("Initial game state:")
     print(game.get_game_status())
 

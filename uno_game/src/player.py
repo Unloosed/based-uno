@@ -3,8 +3,9 @@ from .card import Card, Color, Rank  # Assuming card.py is in the same directory
 
 
 class Player:
-    def __init__(self, name: str):
+    def __init__(self, name: str, player_type: str = "HUMAN"):
         self.name: str = name
+        self.player_type: str = player_type  # HUMAN or CPU
         self.hand: List[Card] = []
 
         # Game-specific counters
