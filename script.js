@@ -95,17 +95,9 @@ async function provideActionInputAPI(playerName, actionInput) {
     return fetchFromAPI("/provide_action_input", 'POST', { player_name: playerName, action_input: actionInput });
 }
 
-// (Placeholder for CPU turn API - to be defined in plan step 7)
 async function cpuPlayTurnAPI(playerName) {
-    logMessage(`Attempting to simulate turn for CPU: ${playerName}... (Endpoint not yet implemented)`);
-    // This will require a new backend endpoint, e.g., /api/cpu_play_turn
-    // For now, let's just refresh state. User would click again if it was a real CPU.
-    // Or, if backend automatically processes CPU turns after a human move, this might not be strictly needed
-    // in this exact form.
-    // await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
-    // return getGameState();
-    alert("CPU turn simulation endpoint is not yet implemented in the backend.");
-    return वर्तमान_खेल_की_स्थिति ? { game_state: वर्तमान_खेल_की_स्थिति, message:"Manual refresh recommended or implement CPU endpoint."} : getGameState();
+    logMessage(`Requesting CPU ${playerName} to play...`);
+    return fetchFromAPI("/cpu_play_turn", 'POST', { player_name: playerName });
 }
 
 
@@ -162,9 +154,13 @@ function renderPlayerHand(hand) { // hand is an array of card objects from game_
     hand.forEach((card, index) => {
         const cardDiv = document.createElement('div');
         cardDiv.className = 'card';
-        // Add color specific classes for styling potential
-        if (card.color) cardDiv.classList.add(card.color); // Assumes card.color is "RED", "BLUE" etc.
-        if (card.rank === "WILD" || card.rank === "WILD_DRAW_FOUR") cardDiv.classList.add("WILD");
+        // Add color specific classes for styling
+        if (card.color) { // card.color is "RED", "BLUE", "WILD" etc.
+            cardDiv.classList.add(`color-${card.color}`);
+        }
+        // Ranks like WILD, WILD_DRAW_FOUR already have color WILD.
+        // Specific rank classes can be added if defined in CSS, e.g. rank-SKIP, rank-DRAW_TWO
+        cardDiv.classList.add(`rank-${card.rank}`);
 
 
         cardDiv.textContent = card.display_str; // Using display_str from card.to_dict()
@@ -212,34 +208,45 @@ function renderPendingActionUI(pendingActionType, actionData, gameState) {
     // or if the human player is not the actor for the current pending action.
     let isHumanPlayerActor = false;
     // Determine if human player is the actor for this pending action
-    // This logic needs to be robust based on how actionData identifies the actor
-    if (pendingActionType === "CHOOSE_COLOR") {
-        // Actor is player_idx in actionData if not for Rank 6, or original_player_idx if for Rank 6
-        const actorIdx = actionData.is_for_rank_6_wild ? actionData.original_player_idx : actionData.player_idx;
-        if (gameState.players[actorIdx] && gameState.players[actorIdx].name === मानव_खिलाड़ी_का_नाम) {
-            isHumanPlayerActor = true;
+    let actorForPendingActionName = null;
+    let humanIsActor = false;
+
+    if (actionData && gameState.players) { // Ensure actionData and players are available
+        let actorIdx = -1;
+        if (pendingActionType === "CHOOSE_COLOR") {
+            actorIdx = actionData.is_for_rank_6_wild ? actionData.original_player_idx : actionData.player_idx;
+        } else if (["SWAP_CARD_RIGHT", "SWAP_CARD_ANY", "PLAY_ANY_AND_DRAW_ONE"].includes(pendingActionType)) {
+            actorIdx = actionData.original_player_idx;
+        } else if (pendingActionType === "DISCARD_FROM_PLAYER_HAND") {
+            actorIdx = actionData.chooser_idx;
         }
-    } else if (pendingActionType === "SWAP_CARD_RIGHT" || pendingActionType === "SWAP_CARD_ANY" || pendingActionType === "PLAY_ANY_AND_DRAW_ONE") {
-        if (gameState.players[actionData.original_player_idx] && gameState.players[actionData.original_player_idx].name === मानव_खिलाड़ी_का_नाम) {
-            isHumanPlayerActor = true;
-        }
-    } else if (pendingActionType === "DISCARD_FROM_PLAYER_HAND") {
-         if (gameState.players[actionData.chooser_idx] && gameState.players[actionData.chooser_idx].name === मानव_खिलाड़ी_का_नाम) {
-            isHumanPlayerActor = true;
+
+        if (actorIdx !== undefined && actorIdx !== -1 && gameState.players[actorIdx]) {
+            actorForPendingActionName = gameState.players[actorIdx].name;
+            if (gameState.players[actorIdx].player_type === "HUMAN" && actorForPendingActionName === मानव_खिलाड़ी_का_नाम) {
+                humanIsActor = true;
+            }
         }
     }
 
-
-    if (!isHumanPlayerActor) {
-        logMessage(`Waiting for ${gameState.players[actionData.original_player_idx || actionData.player_idx || actionData.chooser_idx].name} to resolve ${pendingActionType}...`);
-        // Optionally show a disabled state or message
-        pendingActionInputArea.innerHTML = `<p>Waiting for another player to act on: ${pendingActionType}</p>`;
+    if (!humanIsActor) {
+        const waitingFor = actorForPendingActionName || gameState.current_player_name; // Fallback to current player if specific actor not found
+        logMessage(`Waiting for ${waitingFor} to resolve ${pendingActionType}...`);
+        pendingActionInputArea.innerHTML = `<p>Waiting for ${waitingFor} to act on: ${pendingActionType}</p>`;
+        // Disable all human action buttons
+        playCardButton.disabled = true;
+        drawCardButton.disabled = true;
         return;
     }
+    // If human is the actor, pendingActionInputArea will be populated below.
+    // Standard action buttons (play/draw) are already hidden by renderAll logic if pending_action exists.
 
+    const promptContainer = document.createElement('div');
+    promptContainer.className = 'pending-action-prompt';
 
-    const promptLabel = document.createElement('label');
-    pendingActionInputArea.appendChild(promptLabel);
+    const promptLabel = document.createElement('h3'); // Changed to h3 for better semantics
+    promptContainer.appendChild(promptLabel);
+    pendingActionInputArea.appendChild(promptContainer);
 
     if (pendingActionType === "CHOOSE_COLOR") {
         promptLabel.textContent = "Choose a color for the Wild card:";
@@ -247,119 +254,195 @@ function renderPendingActionUI(pendingActionType, actionData, gameState) {
         colors.forEach(color => {
             const button = document.createElement('button');
             button.textContent = color;
-            button.className = `color-choice-button ${color}`; // For styling
+            // Using existing CSS classes like .color-RED from style.css for buttons too
+            button.className = `color-choice-button color-${color.toUpperCase()}`;
+            // Basic inline styles for immediate visual feedback if CSS isn't fully covering buttons
+            button.style.backgroundColor = color.toLowerCase();
+            if (color === "YELLOW") button.style.color = "black"; else button.style.color = "white";
+
             button.addEventListener('click', async () => {
                 try {
                     const result = await provideActionInputAPI(मानव_खिलाड़ी_का_नाम, { chosen_color: color });
                     logMessage(result.message);
                     वर्तमान_खेल_की_स्थिति = result.game_state;
                     renderAll();
+                    triggerCpuTurnIfApplicable();
                 } catch (error) {
                     // Error already logged by fetchFromAPI
                 }
             });
-            pendingActionInputArea.appendChild(button);
-        });
-    } else if (pendingActionType === "SWAP_CARD_RIGHT" || pendingActionType === "SWAP_CARD_ANY") {
-        // This is complex and will require more detailed UI elements
-        // For now, a placeholder:
-        promptLabel.textContent = `Provide input for ${pendingActionType}. (UI for this is complex and pending full implementation). Card to give (select from hand), then target player (for ANY), then card to take.`;
-
-        // Simplified: Ask for indices via prompt for now, or build proper selectors
-        const cardToGiveIdx = selected_card_index; // Assume card is already selected from hand for "Play"
-        if (cardToGiveIdx === null) {
-            logMessage("Please select a card from your hand to give for the swap first.", "error");
-            // Re-enable standard actions to allow card selection, then player must re-initiate the "play" of the swap card.
-            // This flow is tricky. The original "play" of the card (e.g. '7') should have already put it on discard.
-            // The game state's pending_action means we are now in the *input gathering phase* for that card's effect.
-            // The player should not need to re-select the '7' card. They need to select a *different* card from their *current* hand.
-             promptLabel.textContent = `Select a card from your hand to GIVE, then click "Confirm Swap Details".`;
-             // We need a way for the player to select a card from hand and then click a new button here.
-             // Let's assume they use the main hand display to select a card.
-        }
-
-        let targetPlayerName = null;
-        if (pendingActionType === "SWAP_CARD_ANY") {
-            const targetPlayerLabel = document.createElement('label');
-            targetPlayerLabel.textContent = "Target Player for Swap:";
-            pendingActionInputArea.appendChild(targetPlayerLabel);
-            const targetPlayerSelect = document.createElement('select');
-            gameState.players.forEach(p => {
-                if (p.name !== मानव_खिलाड़ी_का_नाम) {
-                    const option = document.createElement('option');
-                    option.value = p.name;
-                    option.textContent = p.name;
-                    targetPlayerSelect.appendChild(option);
-                }
             });
-            pendingActionInputArea.appendChild(targetPlayerSelect);
-            targetPlayerName = targetPlayerSelect.value; // initial
-            targetPlayerSelect.onchange = () => targetPlayerName = targetPlayerSelect.value;
+            promptContainer.appendChild(button);
+        });
+    } else if (pendingActionType === "PLAY_ANY_AND_DRAW_ONE") {
+        promptLabel.textContent = "Rank 6 effect: Play any card from your hand, then you will draw one.";
+        // Re-enable standard play/draw area for this specific pending action.
+        // The player will select a card and click the main "Play Selected Card" button.
+        standardActionsArea.style.display = 'flex';
+        playCardButton.disabled = (चयनित_कार्ड_का_सूचकांक === null) || isCpuTurnInProgress; // Keep CPU check
+        drawCardButton.disabled = true; // Cannot just draw during this specific action
+        logMessage("Select any card from your hand and click 'Play Selected Card'.");
+
+    } else if (pendingActionType === "SWAP_CARD_RIGHT" || pendingActionType === "SWAP_CARD_ANY") {
+        promptLabel.textContent = `Action: ${pendingActionType}`;
+
+        const explanation = document.createElement('p');
+        promptContainer.appendChild(explanation);
+
+        if (pendingActionType === "SWAP_CARD_ANY") {
+            // SWAP_CARD_ANY has two phases for human: 1. Choose target player, 2. Choose cards.
+            // actionData from backend should indicate which phase.
+            // If actionData.target_player_idx is NOT set, it's phase 1.
+            if (actionData.target_player_idx === undefined || actionData.target_player_idx === null) {
+                explanation.textContent = "First, choose the target player for the swap.";
+                const targetPlayerLabel = document.createElement('label');
+                targetPlayerLabel.textContent = "Target Player for Swap:";
+                promptContainer.appendChild(targetPlayerLabel);
+
+                const targetPlayerSelect = document.createElement('select');
+                targetPlayerSelect.id = "swap-target-player-select";
+                gameState.players.forEach((p, idx) => {
+                    if (p.player_type !== "HUMAN" || p.name !== मानव_खिलाड़ी_का_नाम) { // Can target CPUs or other humans
+                        if (p.name !== मानव_खिलाड़ी_का_नाम) { // Cannot target self
+                           const option = document.createElement('option');
+                           option.value = idx.toString(); // Store index
+                           option.textContent = `${p.name} (${p.card_count} cards)`;
+                           targetPlayerSelect.appendChild(option);
+                        }
+                    }
+                });
+                promptContainer.appendChild(targetPlayerSelect);
+
+                const confirmTargetButton = document.createElement('button');
+                confirmTargetButton.textContent = "Confirm Target Player";
+                confirmTargetButton.onclick = async () => {
+                    const targetIdx = parseInt(document.getElementById('swap-target-player-select').value);
+                    try {
+                        const result = await provideActionInputAPI(मानవ_खिलाड़ी_का_नाम, { target_player_idx: targetIdx });
+                        logMessage(result.message);
+                        वर्तमान_खेल_की_स्थिति = result.game_state;
+                        renderAll();
+                        // Still human's turn for multi-step action, so no triggerCpuTurnIfApplicable yet.
+                    } catch (error) { /* already logged */ }
+                };
+                promptContainer.appendChild(confirmTargetButton);
+                return; // End here for phase 1 of SWAP_CARD_ANY
+            } else {
+                // Phase 2: Target player is known (from actionData.target_player_idx), now choose cards.
+                const targetPlayer = gameState.players[actionData.target_player_idx];
+                explanation.textContent = `You are swapping with ${targetPlayer.name}. Select a card from YOUR hand to give. Then, specify the index (0-based) of the card to take from ${targetPlayer.name}'s hand (they have ${targetPlayer.card_count} cards).`;
+            }
+        } else { // SWAP_CARD_RIGHT
+             const humanPlayerIndex = gameState.players.findIndex(p => p.name === मानव_खिलाड़ी_का_नाम);
+             const playerToRightIdx = (humanPlayerIndex + gameState.play_direction + gameState.players.length) % gameState.players.length;
+             const playerToRight = gameState.players[playerToRightIdx];
+             explanation.textContent = `You are swapping with ${playerToRight.name} (player to your ${gameState.play_direction === 1 ? 'right' : 'left'}). Select a card from YOUR hand to give. Then, specify the index (0-based) of the card to take from ${playerToRight.name}'s hand (they have ${playerToRight.card_count} cards).`;
         }
+
+        const cardToGivePrompt = document.createElement('p');
+        cardToGivePrompt.innerHTML = "<strong>1. Select a card from your hand above to give.</strong>";
+        promptContainer.appendChild(cardToGivePrompt);
 
         const cardToTakeLabel = document.createElement('label');
-        cardToTakeLabel.textContent = "Index of card to TAKE from target player's hand (0-based):";
-        pendingActionInputArea.appendChild(cardToTakeLabel);
+        cardToTakeLabel.htmlFor = 'swap-card-to-take-idx';
+        cardToTakeLabel.innerHTML = "<strong>2. Index of card to TAKE from target's hand (0-based):</strong>";
+        promptContainer.appendChild(cardToTakeLabel);
         const cardToTakeInput = document.createElement('input');
         cardToTakeInput.type = 'number';
         cardToTakeInput.min = '0';
-        pendingActionInputArea.appendChild(cardToTakeInput);
+        cardToTakeInput.id = 'swap-card-to-take-idx';
+        promptContainer.appendChild(cardToTakeInput);
 
         const confirmButton = document.createElement('button');
-        confirmButton.textContent = "Confirm Swap Details";
+        confirmButton.textContent = "Confirm Swap";
         confirmButton.onclick = async () => {
-            const cardToGiveFromHandIdx = selected_card_index; // This should be a *new* selection from hand
+            const cardToGiveFromHandIdx = चयनित_कार्ड_का_सूचकांक;
             if (cardToGiveFromHandIdx === null) {
-                logMessage("Error: You must select a card from your hand to give for the swap.", "error");
+                logMessage("Error: You must select a card from YOUR hand to give.", "error");
                 return;
             }
+            const cardToTakeIdxValue = parseInt(document.getElementById('swap-card-to-take-idx').value);
+            if (isNaN(cardToTakeIdxValue) || cardToTakeIdxValue < 0) {
+                 logMessage("Error: Invalid index for card to take.", "error");
+                return;
+            }
+
             const actionPayload = {
                 card_to_give_idx: cardToGiveFromHandIdx,
-                card_to_take_idx: parseInt(cardToTakeInput.value)
+                card_to_take_idx: cardToTakeIdxValue
             };
+
             if (pendingActionType === "SWAP_CARD_ANY") {
-                // Find index of targetPlayerName
-                const targetPIdx = gameState.players.findIndex(p => p.name === targetPlayerName);
-                if (targetPIdx === -1) { logMessage("Error: Selected target player not found.", "error"); return;}
-                actionPayload.target_player_idx = targetPIdx;
+                if (actionData.target_player_idx === undefined) {
+                     logMessage("Error: Target player for SWAP_CARD_ANY not determined.", "error"); return;
+                }
+                actionPayload.target_player_idx = actionData.target_player_idx;
             }
+
             try {
-                const result = await provideActionInputAPI(मानव_खिलाड़ी_का_नाम, actionPayload);
+                const result = await provideActionInputAPI(मानవ_खिलाड़ी_का_नाम, actionPayload);
                 logMessage(result.message);
                 वर्तमान_खेल_की_स्थिति = result.game_state;
                 renderAll();
+                triggerCpuTurnIfApplicable();
             } catch (error) { /* already logged */ }
         };
-        pendingActionInputArea.appendChild(confirmButton);
-
+        promptContainer.appendChild(confirmButton);
 
     } else if (pendingActionType === "DISCARD_FROM_PLAYER_HAND") {
-        promptLabel.textContent = `Choose cards from ${actionData.victim_name}'s hand to discard. (UI for this is complex and pending full implementation).`;
-        // Requires displaying victim's hand (or card count) and allowing selection of N cards.
-        // Simplified: Ask for indices via prompt for now
+        const victimPlayer = gameState.players[actionData.victim_idx]; // Player who played blue 3
+        const chooserPlayer = gameState.players[actionData.chooser_idx]; // Player who must choose (human)
+        const numToDiscard = actionData.count || 2;
+
+        promptLabel.textContent = `Action: ${victimPlayer.name} played Blue 3!`;
+        const explanation = document.createElement('p');
+        explanation.textContent = `You (${chooserPlayer.name}) must choose ${numToDiscard} card(s) from ${victimPlayer.name}'s hand for them to discard. ${victimPlayer.name} has ${victimPlayer.card_count} cards.`;
+        promptContainer.appendChild(explanation);
+
         const indicesInputLabel = document.createElement('label');
-        indicesInputLabel.textContent = `Indices of cards to discard from ${actionData.victim_name}'s hand (comma-separated, e.g., 0,2):`;
-        pendingActionInputArea.appendChild(indicesInputLabel);
+        indicesInputLabel.htmlFor = 'discard-indices-input';
+        indicesInputLabel.textContent = `Enter ${numToDiscard} card index/indices (0-based, comma-separated if multiple) from ${victimPlayer.name}'s hand:`;
+        promptContainer.appendChild(indicesInputLabel);
+
         const indicesInput = document.createElement('input');
         indicesInput.type = 'text';
-        pendingActionInputArea.appendChild(indicesInput);
+        indicesInput.id = 'discard-indices-input';
+        indicesInput.placeholder = numToDiscard === 1 ? "e.g., 0" : "e.g., 0,2";
+        promptContainer.appendChild(indicesInput);
 
         const confirmButton = document.createElement('button');
         confirmButton.textContent = "Confirm Discard Selection";
         confirmButton.onclick = async () => {
-            const indicesStr = indicesInput.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+            const indicesStr = document.getElementById('discard-indices-input').value;
+            const chosenIndices = indicesStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+
+            // Validate chosen indices count
+            const uniqueIndices = [...new Set(chosenIndices)];
+            if (uniqueIndices.length !== numToDiscard) {
+                logMessage(`Error: You must select exactly ${numToDiscard} unique card indices.`, 'error');
+                return;
+            }
+            // Further validation (are indices in range of victim's hand) should be done by backend
+            // but a simple client-side check can be useful too.
+            for(const idx of uniqueIndices){
+                if(idx < 0 || idx >= victimPlayer.card_count){
+                    logMessage(`Error: Index ${idx} is out of range for ${victimPlayer.name}'s hand (0-${victimPlayer.card_count-1}).`, 'error');
+                    return;
+                }
+            }
+
             try {
-                const result = await provideActionInputAPI(मानव_खिलाड़ी_का_नाम, { chosen_indices_from_victim: indicesStr });
+                const result = await provideActionInputAPI(मानవ_खिलाड़ी_का_नाम, { chosen_indices_from_victim: uniqueIndices });
                 logMessage(result.message);
                 वर्तमान_खेल_की_स्थिति = result.game_state;
                 renderAll();
+                triggerCpuTurnIfApplicable();
             } catch (error) { /* already logged */ }
         };
-        pendingActionInputArea.appendChild(confirmButton);
-    }
-    // Add more pending actions here: PLAY_ANY_AND_DRAW_ONE is handled by play_card if card_index is passed.
-    else {
-        promptLabel.textContent = `Unhandled pending action: ${pendingActionType}. Please check game logic.`;
+        promptContainer.appendChild(confirmButton);
+    } else {
+        promptLabel.textContent = `Unhandled pending action for human: ${pendingActionType}.`;
+        logMessage(`Info: Waiting for action on ${pendingActionType}. If this is unexpected, check console or backend.`, "info");
     }
 }
 
@@ -380,21 +463,42 @@ function renderAll() {
 
     renderPendingActionUI(वर्तमान_खेल_की_स्थिति.pending_action, वर्तमान_खेल_की_स्थिति.action_data, वर्तमान_खेल_की_स्थिति);
 
-    // Show/hide CPU turn button
-    if (वर्तमान_खेल_की_स्थिति.current_player_name !== मानव_खिलाड़ी_का_नाम && !वर्तमान_खेल_की_स्थिति.pending_action && !वर्तमान_खेल_की_स्थिति.game_over) {
-        cpuTurnArea.style.display = 'block';
-        standardActionsArea.style.display = 'none'; // Hide player actions
-        pendingActionInputArea.innerHTML = ''; // Clear pending actions
-    } else {
-        cpuTurnArea.style.display = 'none';
-    }
+    const currentPlayer = वर्तमान_खेल_की_स्थिति.players.find(p => p.name === वर्तमान_खेल_की_स्थिति.current_player_name);
+    const isHumanTurn = currentPlayer && currentPlayer.player_type === "HUMAN" && currentPlayer.name === मानव_खिलाड़ी_का_नाम;
 
     if (वर्तमान_खेल_की_स्थिति.game_over) {
         logMessage(`Game Over! Winner: ${वर्तमान_खेल_की_स्थिति.winner || 'None'}`, 'success');
         playCardButton.disabled = true;
         drawCardButton.disabled = true;
-        cpuTurnButton.disabled = true;
+        cpuTurnButton.disabled = true; // Manual CPU button
+        standardActionsArea.style.display = 'none';
         pendingActionInputArea.innerHTML = `<p><strong>Game Over! Winner: ${वर्तमान_खेल_की_स्थिति.winner || 'None'}</strong></p>`;
+        cpuTurnArea.style.display = 'none';
+    } else if (वर्तमान_खेल_की_स्थिति.pending_action) {
+        // If there's a pending action, renderPendingActionUI handles UI for the actor.
+        // Standard actions should be hidden.
+        standardActionsArea.style.display = 'none';
+        cpuTurnArea.style.display = 'none';
+        // playCardButton and drawCardButton are handled by renderPendingActionUI if human is actor,
+        // or disabled if human is not actor by the logic within renderPendingActionUI.
+    } else if (isHumanTurn) {
+        standardActionsArea.style.display = 'flex';
+        playCardButton.disabled = (चयनित_कार्ड_का_सूचकांक === null) || isCpuTurnInProgress;
+        drawCardButton.disabled = isCpuTurnInProgress;
+        cpuTurnArea.style.display = 'none';
+        pendingActionInputArea.innerHTML = ''; // Clear any old pending action UI
+    } else { // CPU's turn (and no pending action for human)
+        standardActionsArea.style.display = 'none';
+        pendingActionInputArea.innerHTML = ''; // Clear any old pending action UI
+        playCardButton.disabled = true;
+        drawCardButton.disabled = true;
+        // cpuTurnArea.style.display = 'block'; // If manual CPU button is desired
+        // For auto CPU turns, this button might not be shown or needed.
+        // If it's a CPU turn, triggerCpuTurnIfApplicable should have been called.
+        cpuTurnButton.disabled = isCpuTurnInProgress; // Reflects if manual button is active
+        if (isCpuTurnInProgress) {
+             logMessage(`CPU ${currentPlayer.name} is processing...`);
+        }
     }
 }
 
@@ -427,6 +531,7 @@ async function handlePlayCard() {
         वर्तमान_खेल_की_स्थिति = result.game_state;
         चयनित_कार्ड_का_सूचकांक = null; // Reset selected card
         renderAll();
+        triggerCpuTurnIfApplicable(); // Check if CPU should play next
     } catch (error) {
         // Error already logged by fetchFromAPI. Button will re-enable via renderAll if appropriate.
         // If the error json contains game_state, it would have been updated by fetchFromAPI.
@@ -438,47 +543,127 @@ async function handlePlayCard() {
 async function handleDrawCard() {
     try {
         drawCardButton.disabled = true;
-        const result = await drawCardAPI(मानव_खिलाड़ी_का_नाम);
+        const result = await drawCardAPI(मानవ_खिलाड़ी_का_नाम);
         logMessage(result.message);
         वर्तमान_खेल_की_स्थिति = result.game_state;
         renderAll();
+        triggerCpuTurnIfApplicable(); // Check if CPU should play next
     } catch (error) {
         // Error already logged. Button will re-enable via renderAll if appropriate.
         renderAll();
     }
 }
 
+let isCpuTurnInProgress = false; // Flag to prevent overlapping CPU turn calls
+
 async function handleCpuTurn() {
-    if (वर्तमान_खेल_की_स्थिति && वर्तमान_खेल_की_स्थिति.current_player_name !== मानव_खिलाड़ी_का_नाम) {
-        try {
-            cpuTurnButton.disabled = true;
-            // This is a placeholder. The actual implementation depends on how CPU turns are managed.
-            // For now, we assume this call would make the CPU play and return the new state.
-            // A dedicated backend endpoint /api/cpu_play_turn would be needed.
-            logMessage(`Simulating turn for ${वर्तमान_खेल_की_स्थिति.current_player_name}...`);
+    if (!वर्तमान_खेल_की_स्थिति || वर्तमान_खेल_की_स्थिति.game_over || isCpuTurnInProgress) {
+        return;
+    }
 
-            // const result = await cpuPlayTurnAPI(वर्तमान_खेल_की_स्थिति.current_player_name);
-            // For now, just re-fetch state, assuming backend might have advanced if it were a real game.
-            // This is a stop-gap until a proper CPU turn API endpoint exists.
-            // If the backend doesn't auto-play CPUs, this button won't do much other than show a message and refresh.
-            // The proper solution is an endpoint that tells the backend: "Hey, it's CPU X's turn, make them play."
+    const currentPlayerName = वर्तमान_खेल_की_स्थिति.current_player_name;
+    const currentPlayer = वर्तमान_खेल_की_स्थिति.players.find(p => p.name === currentPlayerName);
 
-            // Let's modify this to call a generic "advance turn if CPU" endpoint or just refresh.
-            // For a true simulation button, we need a backend endpoint.
-            // Fallback: just fetch game state, assuming backend game loop might advance CPU.
-            // This is NOT ideal.
-            alert("CPU turn simulation needs a dedicated backend endpoint that makes the CPU play. For now, this button will just refresh the game state. If the backend has logic for CPU auto-play, it might reflect. Otherwise, manual calls for CPU via API tester would be needed.");
-            const updatedState = await getGameState();
-            वर्तमान_खेल_की_स्थिति = updatedState; // game_state is directly the object
-            logMessage( "Attempted to refresh state after CPU turn simulation.");
+    if (!currentPlayer || currentPlayer.player_type !== "CPU") {
+        // logMessage("Not a CPU's turn or player not found.", "debug");
+        return;
+    }
 
-            renderAll();
-        } catch (error) {
-            logMessage(`Error during CPU turn simulation: ${error.message}`, 'error');
-            renderAll(); // Re-enable button if error
+    isCpuTurnInProgress = true;
+    cpuTurnButton.disabled = true; // Keep this for manual trigger if needed, or disable generally
+    logMessage(`CPU ${currentPlayerName} is thinking...`);
+
+    try {
+        // Add a small delay for UX
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const result = await cpuPlayTurnAPI(currentPlayerName);
+        logMessage(result.message || `CPU ${currentPlayerName} completed its turn.`);
+        वर्तमान_खेल_की_स्थिति = result.game_state;
+        renderAll(); // Render before checking for next CPU turn
+
+        if (वर्तमान_खेल_की_स्थिति && !वर्तमान_खेल_की_स्थिति.game_over) {
+            // Check if the next player is also a CPU and trigger their turn
+            const nextPlayerName = वर्तमान_खेल_की_स्थिति.current_player_name;
+            const nextPlayer = वर्तमान_खेल_की_स्थिति.players.find(p => p.name === nextPlayerName);
+
+            let humanActorRequiredForNextPendingAction = false;
+            if (वर्तमान_खेल_की_स्थिति.pending_action && वर्तमान_खेल_की_स्थिति.action_data) {
+                const paData = वर्तमान_खेल_की_स्थिति.action_data;
+                const paType = वर्तमान_खेल_की_स्थिति.pending_action;
+                let actorIdx;
+                if (paType === "CHOOSE_COLOR") {
+                    actorIdx = paData.is_for_rank_6_wild ? paData.original_player_idx : paData.player_idx;
+                } else if (["SWAP_CARD_RIGHT", "SWAP_CARD_ANY", "PLAY_ANY_AND_DRAW_ONE"].includes(paType)) {
+                    actorIdx = paData.original_player_idx;
+                } else if (paType === "DISCARD_FROM_PLAYER_HAND") {
+                    actorIdx = paData.chooser_idx;
+                }
+                if (actorIdx !== undefined && वर्तमान_खेल_की_स्थिति.players[actorIdx] && वर्तमान_खेल_की_स्थिति.players[actorIdx].player_type === "HUMAN") {
+                    humanActorRequiredForNextPendingAction = true;
+                }
+            }
+
+            if (nextPlayer && nextPlayer.player_type === "CPU" && !humanActorRequiredForNextPendingAction) {
+                // If the next player is CPU AND there's no pending action OR the pending action is not for a human
+                setTimeout(() => {
+                    isCpuTurnInProgress = false;
+                    handleCpuTurn();
+                }, 100);
+            } else {
+                 isCpuTurnInProgress = false;
+            }
+        } else {
+            isCpuTurnInProgress = false; // Game is over
         }
-    } else {
-        logMessage("It's not a CPU's turn.", "info");
+    } catch (error) {
+        logMessage(`Error during CPU ${currentPlayerName}'s turn: ${error.message}`, 'error');
+        // वर्तमान_खेल_की_स्थिति might have been updated by fetchFromAPI with error details
+        renderAll();
+        isCpuTurnInProgress = false;
+    } finally {
+        // Update button state based on whether next turn is human or CPU auto-plays
+        const nextPlayer = वर्तमान_खेल_की_स्थिति ? वर्तमान_खेल_की_स्थिति.players.find(p => p.name === वर्तमान_खेल_की_स्थिति.current_player_name) : null;
+        const nextIsCpu = nextPlayer && nextPlayer.player_type === "CPU";
+        // Disable manual CPU button if a CPU turn is in progress, or if it's human's turn, or if game is over
+        cpuTurnButton.disabled = isCpuTurnInProgress || !nextIsCpu || (वर्तमान_खेल_की_स्थिति && वर्तमान_खेल_की_स्थिति.game_over);
+    }
+}
+
+function triggerCpuTurnIfApplicable() {
+    if (!वर्तमान_खेल_की_स्थिति || वर्तमान_खेल_की_स्थिति.game_over || isCpuTurnInProgress) {
+        return;
+    }
+    const currentPlayer = वर्तमान_खेल_की_स्थिति.players.find(p => p.name === वर्तमान_खेल_की_स्थिति.current_player_name);
+
+    if (currentPlayer && currentPlayer.player_type === "CPU") {
+        // Check if there's a pending action that requires HUMAN input.
+        // If so, don't auto-trigger CPU.
+        let humanActorRequiredForPending = false;
+        if (वर्तमान_खेल_की_स्थिति.pending_action && वर्तमान_खेल_की_स्थिति.action_data) {
+            const paData = वर्तमान_खेल_की_स्थिति.action_data;
+            const paType = वर्तमान_खेल_की_स्थिति.pending_action; // This is a string e.g. "CHOOSE_COLOR"
+            let actorIdx;
+
+            if (paType === "CHOOSE_COLOR") {
+                actorIdx = paData.is_for_rank_6_wild ? paData.original_player_idx : paData.player_idx;
+            } else if (["SWAP_CARD_RIGHT", "SWAP_CARD_ANY", "PLAY_ANY_AND_DRAW_ONE"].includes(paType)) {
+                actorIdx = paData.original_player_idx;
+            } else if (paType === "DISCARD_FROM_PLAYER_HAND") {
+                actorIdx = paData.chooser_idx;
+            }
+
+            if (actorIdx !== undefined && वर्तमान_खेल_की_स्थिति.players[actorIdx] && वर्तमान_खेल_की_स्थिति.players[actorIdx].player_type === "HUMAN") {
+                humanActorRequiredForPending = true;
+            }
+        }
+
+        if (!humanActorRequiredForPending) {
+            // Delay slightly to allow UI updates from previous action to render
+            setTimeout(handleCpuTurn, 100);
+        } else {
+            logMessage("CPU turn, but pending action requires human input.", "info");
+        }
     }
 }
 
@@ -488,9 +673,17 @@ async function initGame() {
     try {
         const initialState = await getGameState();
         वर्तमान_खेल_की_स्थिति = initialState; // game_state is directly the object
-        मानव_खिलाड़ी_का_नाम = initialState.players.find(p => !p.name.toLowerCase().includes("cpu"))?.name || "Player 1"; // Simple way to find a human
-        logMessage("Game loaded successfully. Welcome!");
+        const humanPlayerFound = initialState.players.find(p => p.player_type === "HUMAN");
+        if (humanPlayerFound) {
+            मानव_खिलाड़ी_का_नाम = humanPlayerFound.name;
+        } else {
+            // Fallback if no player is marked as HUMAN (should not happen with backend setup)
+            मानव_खिलाड़ी_का_नाम = initialState.players[0]?.name || "Player 1";
+            logMessage("Warning: No player explicitly marked as HUMAN. Defaulting to first player.", "error");
+        }
+        logMessage(`Game loaded successfully. Welcome, ${मानव_खिलाड़ी_का_नाम}!`);
         renderAll();
+        triggerCpuTurnIfApplicable(); // Check if CPU should play first
     } catch (error) {
         logMessage("Failed to initialize game. Please check the server.", "error");
         // console.error("Initialization failed:", error);
